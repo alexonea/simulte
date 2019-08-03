@@ -1,0 +1,22 @@
+## Proposal for solving the CBG-based re-transmission problem
+
+# Problem Statement
+In SimuLTE, the HARQ architecture relies on the fact that the feeback and transmission units are TBs. This gets in the way of implementing a CBG-based re-transmission scheme.
+
+# Proposal #1
+The sender generates a TB to be sent based on the LteMacPdu, which contains information about the CBG number, size and order.
+The sender introduces the LteMacPdu in the HarqBufferTx instance (for compatibility with the current implementation).
+The LteMacPdu is propagated to a HarqProcessTx instance.
+The LteMacPdu is further propagated to a HarqUnitTx instance. Here, it is de-composed into its constituent CBGs.
+Each individual CBG is sent down to the PHY layer.
+
+The receiver receives a CBG.
+The receiver extracts the owning LteMacPdu from the CBG (through the TB instance referenced) and inserts it into the HarqBufferRx instance.
+The LteMacPdu is propagated to a HarqProcessRx instance. Here feedback is generated based on various parameters (not to be modified, for compatibility with the current implementation).
+The feedback is sent down to the PHY layer.
+
+The sender receives the feedback packet.
+The sender associates the feedback packet to the respective LteMacPdu.
+The feedback packet is propagated to the corresponding HarqUnitTx.
+Based on the feedback result and using a probabilistic distribution, a further per-CBG feedback is generated.
+Only the respective CBGs are retransmitted.

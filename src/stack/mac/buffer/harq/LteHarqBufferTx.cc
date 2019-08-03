@@ -72,6 +72,15 @@ void LteHarqBufferTx::markSelected(UnitList unitIds, unsigned char availableTbs)
     unsigned char acid = unitIds.first;
     CwList cwList = unitIds.second;
 
+    // [2019-08-03] TODO: This is not allowed in the current form. CBGs cannot be re-transmitted with any TB
+    //     other than the one used for the initial transmission (please reformulate this). Neverhtless, a
+    //     jumbo TB will most likely prevent the CBGs to be correctly re-transmitted. An alternative solution
+    //     is needed. In the first phase, simply disabling this should work (i.e. we only re-transmit up to
+    //     the number of available TBs and no more).
+    //
+    //     Update: the information above does not actuallty apply to the situation below because the available
+    //     TB number below is related to the SU-MIMO case and physical multiplexing on multiple codewords.
+    //     Nevertheless, in such cases, combining the TBs does result in problems when dealing with CBGs.
     if (cwList.size() > availableTbs)
     {
         //eg: tx mode siso trying to rtx 2 TBs
@@ -124,6 +133,10 @@ void LteHarqBufferTx::insertPdu(unsigned char acid, Codeword cw, LteMacPdu *pdu)
 
     if (!(*processes_)[acid]->isUnitEmpty(cw))
         throw cRuntimeError("LteHarqBufferTx::insertPdu(): unit is not empty");
+
+    // [2019-08-03] TODO: Generate CBGs based on LteMacPdu and encapsulate them into a TB instance. Attach the
+    //     TB instance to the LteMacPdu. Alternatively, propagate the TB instance instead of the LteMacPdu and
+    //     reference the LteMacPdu from the TB instance.
 
     selectedAcid_ = acid;
     numEmptyProc_--;
@@ -232,6 +245,8 @@ void LteHarqBufferTx::sendSelectedDown()
     CwList::iterator it;
     for (it = ul.begin(); it != ul.end(); it++)
     {
+        // [2019-08-03] TODO: instead of extracting the LteMacPdu, we should extract only the CBGs selected for
+        //     re-transmission.
         LteMacPdu *pduToSend = (*processes_)[selectedAcid_]->extractPdu(*it);
         macOwner_->sendLowerPackets(pduToSend);
 
