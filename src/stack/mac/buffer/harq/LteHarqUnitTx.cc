@@ -86,6 +86,8 @@ void LteHarqUnitTx::markSelected()
     if (!(this->isReady()))
     throw cRuntimeError("ERROR acid %d codeword %d trying to select for transmission an empty buffer", acid_, cw_);
 
+    // [2019-08-03] TODO: status is per-CBG istead of per TB. All CBGs which have received a NACK will be marked
+    //     for re-transmission here.
     status_ = TXHARQ_PDU_SELECTED;
 }
 
@@ -130,6 +132,10 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
     }
     else if (a == HARQNACK)
     {
+        // [2019-08-03] TODO: based on *some* probabilistic distribution, make a decision here which CBGs have been received
+        //     correctly and which not. Keep a per-CBG status and mark only the corrupted CBGs as buffed (so they can be
+        //     scheduled for re-transmission later). If any of the CBGs has reached the re-transmission limit, drop the whole
+        //     TB, as usual.
         sample = 1;
         if (transmissions_ == (maxHarqRtx_ + 1))
         {

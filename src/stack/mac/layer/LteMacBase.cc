@@ -81,6 +81,9 @@ void LteMacBase::fromPhy(cPacket *pkt)
     // TODO: harq test (comment fromPhy: it has only to pass pdus to proper rx buffer and
     // to manage H-ARQ feedback)
 
+    // [2019-08-03] TODO: Make sure that the CBGs (which will be transmitted as data packets) have attached
+    //     the UserControlInfo. Otherwise, this section will not work because it is expacting DATAPKT as the
+    //     packet type for proper processing.
     UserControlInfo *userInfo = check_and_cast<UserControlInfo *>(pkt->getControlInfo());
     MacNodeId src = userInfo->getSourceId();
 
@@ -120,6 +123,10 @@ void LteMacBase::fromPhy(cPacket *pkt)
         // data packet: insert in proper rx buffer
         EV << NOW << "Mac::fromPhy: node " << nodeId_ << " Received DATA packet" << endl;
 
+        // [2019-08-03] TODO: Add support for CBG transmission instead of LteMacPdu. Casting should be done to
+        //     CBGs. The LteMacPdu will be extracted from the CBGs and inserted into the buffers. Alternatively,
+        //     the CBGs themselves can be introduced into the buffer, where the LteMacPdu is extracted and the
+        //     usual process goes on.
         LteMacPdu *pdu = check_and_cast<LteMacPdu *>(pkt);
         Codeword cw = userInfo->getCw();
         HarqRxBuffers::iterator hrit = harqRxBuffers_.find(src);
