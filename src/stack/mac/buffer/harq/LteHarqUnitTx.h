@@ -17,6 +17,8 @@
 #include "common/LteCommon.h"
 #include "stack/mac/layer/LteMacBase.h"
 
+#include "stack/mac/packet/LteMacTransportBlock.h"
+
 class LteMacBase;
 
 /**
@@ -38,6 +40,7 @@ class LteHarqUnitTx
 
     /// Carried sub-burst
     LteMacPdu *pdu_;
+    LteMacTransportBlock *tb_;
 
     /// Omnet ID of the pdu
     long pduId_;
@@ -52,9 +55,10 @@ class LteHarqUnitTx
     Codeword cw_;
 
     /// Number of (re)transmissions for current pdu (N.B.: values are 1,2,3,4)
-    unsigned char transmissions_;
+    unsigned char *transmissions_;
+    unsigned char overallTransmissions_;
 
-    TxHarqPduStatus status_;
+    TxHarqPduStatus *status_;
 
     /// TTI at which the pdu has been transmitted
     simtime_t txTime_;
@@ -139,6 +143,11 @@ class LteHarqUnitTx
     virtual bool isReady();
 
     /**
+     * Tells if the unit contains at least one CBG in the given state
+     */
+    virtual bool isAtLeastOneInState(TxHarqPduStatus);
+
+    /**
      * If, after evaluating the pdu, it cannot be retransmitted because there isn't
      * enough frame space, a selfNack can be issued to advance the unit status.
      * This avoids a big pdu that cannot be retransmitted (because the channel changed),
@@ -172,7 +181,9 @@ class LteHarqUnitTx
 
     virtual unsigned char getTransmissions()
     {
-        return transmissions_;
+        // [2019-08-05] TODO: clarify the usage of this. Is a per CBG metric
+        //     needed or is the overall metric enough?
+        return overallTransmissions_;
     }
 
     virtual inet::int64 getPduLength()
@@ -187,7 +198,7 @@ class LteHarqUnitTx
 
     virtual bool isMarked()
     {
-        return (status_ == TXHARQ_PDU_SELECTED);
+        return (isAtLeastOneInState (TXHARQ_PDU_SELECTED));
     }
 
     virtual long getMacPduId()
@@ -197,7 +208,9 @@ class LteHarqUnitTx
 
     virtual TxHarqPduStatus getStatus()
     {
-        return status_;
+        // [2019-08-05] TODO: Return a more elaborate status including per-CBG indications. For now, we just return
+        //     the status of the first CBG.
+        return status_ [0];
     }
 
     virtual ~LteHarqUnitTx();
