@@ -134,10 +134,6 @@ void LteHarqBufferTx::insertPdu(unsigned char acid, Codeword cw, LteMacPdu *pdu)
     if (!(*processes_)[acid]->isUnitEmpty(cw))
         throw cRuntimeError("LteHarqBufferTx::insertPdu(): unit is not empty");
 
-    // [2019-08-03] TODO: Generate CBGs based on LteMacPdu and encapsulate them into a TB instance. Attach the
-    //     TB instance to the LteMacPdu. Alternatively, propagate the TB instance instead of the LteMacPdu and
-    //     reference the LteMacPdu from the TB instance.
-
     selectedAcid_ = acid;
     numEmptyProc_--;
     (*processes_)[acid]->insertPdu(pdu, cw);

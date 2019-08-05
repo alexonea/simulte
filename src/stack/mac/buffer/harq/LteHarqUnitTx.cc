@@ -18,9 +18,10 @@ LteHarqUnitTx::LteHarqUnitTx(unsigned char acid, Codeword cw,
     pduId_ = -1;
     acid_ = acid;
     cw_ = cw;
-    transmissions_ = 0;
+    transmissions_ = nullptr;
+    overallTransmissions_ = 0;
     txTime_ = 0;
-    status_ = TXHARQ_PDU_EMPTY;
+    status_ = nullptr;
     macOwner_ = macOwner;
     dstMac_ = dstMac;
     maxHarqRtx_ = macOwner->par("maxHarqRtx");
@@ -61,12 +62,35 @@ void LteHarqUnitTx::insertPdu(LteMacPdu *pdu)
     if (!this->isEmpty())
         throw cRuntimeError("Trying to insert macPdu in already busy harq unit");
 
+    // [2019-08-03] TODO: Generate CBGs based on LteMacPdu and encapsulate them into a TB instance. Attach the
+    //     TB instance to the LteMacPdu. Alternatively, propagate the TB instance instead of the LteMacPdu and
+    //     reference the LteMacPdu from the TB instance.
+    if (tb_) delete tb_;
+    tb_ = new LteMacTransportBlock (pdu);
+
+    // [2019-08-05] TODO: compute the number of CBGs based on the size of the PDU
+    unsigned numCBGs = tb_->getNumCBGs();
+
     pdu_ = pdu;
     pduId_ = pdu->getId();
     // as unique MacPDUId the OMNET id is used (need separate member since it must not be changed by dup())
     pdu->setMacPduId(pdu->getId());
-    transmissions_ = 0;
-    status_ = TXHARQ_PDU_SELECTED;
+
+    // [2019-08-05] we keep re-transmission count and status for each individual CBG.
+    if (transmissions_) delete [] transmissions_;
+    transmissions_ = new unsigned char [numCBGs];
+
+    overallTransmissions_ = 0;
+
+    if (status_) delete [] status_;
+    status_ = new TxHarqPduStatus [numCBGs];
+
+    for (std::size_t i = 0; i < numCBGs; ++i)
+    {
+        transmissions_ [i] = 0;
+        status_        [i] = TXHARQ_PDU_SELECTED;
+    }
+
     pduLength_ = pdu_->getByteLength();
     UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
         pdu_->getControlInfo());
@@ -86,24 +110,33 @@ void LteHarqUnitTx::markSelected()
     if (!(this->isReady()))
     throw cRuntimeError("ERROR acid %d codeword %d trying to select for transmission an empty buffer", acid_, cw_);
 
-    // [2019-08-03] TODO: status is per-CBG istead of per TB. All CBGs which have received a NACK will be marked
+    // [2019-08-03] TODO: status is per-CBG instead of per TB. All CBGs which have received a NACK will be marked
     //     for re-transmission here.
-    status_ = TXHARQ_PDU_SELECTED;
+    auto numCBGs = tb_->getNumCBGs();
+    for (std::size_t i = 0; i < numCBGs; ++i)
+        if (status_ [i] == TXHARQ_PDU_BUFFERED) status_ [i] = TXHARQ_PDU_SELECTED;
 }
 
 LteMacPdu *LteHarqUnitTx::extractPdu()
 {
-    if (!(status_ == TXHARQ_PDU_SELECTED))
+    if (! isAtLeastOneInState(TXHARQ_PDU_SELECTED))
         throw cRuntimeError("Trying to extract macPdu from not selected H-ARQ unit");
 
+    // [2019-08-05] TODO: make txTime also per-CBG?
     txTime_ = NOW;
-    transmissions_++;
-    status_ = TXHARQ_PDU_WAITING; // waiting for feedback
+
+    auto numCBGs = tb_->getNumCBGs ();
+    for (std::size_t i = 0; i < numCBGs; ++i)
+    {
+        transmissions_ [i]++;
+        status_ [i] = TXHARQ_PDU_WAITING; // waiting for feedback
+    }
+
     UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
         pdu_->getControlInfo());
-    lteInfo->setTxNumber(transmissions_);
-    lteInfo->setNdi((transmissions_ == 1) ? true : false);
-    EV << "LteHarqUnitTx::extractPdu - ndi set to " << ((transmissions_ == 1) ? "true" : "false") << endl;
+    lteInfo->setTxNumber(++overallTransmissions_);
+    lteInfo->setNdi((overallTransmissions_ == 1) ? true : false);
+    EV << "LteHarqUnitTx::extractPdu - ndi set to " << ((overallTransmissions_ == 1) ? "true" : "false") << endl;
 
     LteMacPdu* extractedPdu = pdu_->dup();
     macOwner_->takeObj(extractedPdu);
@@ -118,9 +151,12 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
     UserControlInfo *lteInfo;
     lteInfo = check_and_cast<UserControlInfo *>(pdu_->getControlInfo());
     short unsigned int dir = lteInfo->getDirection();
-    unsigned int ntx = transmissions_;
-    if (!(status_ == TXHARQ_PDU_WAITING))
-    throw cRuntimeError("Feedback sent to an H-ARQ unit not waiting for it");
+
+    // [2019-08-05] TODO: which counter should be considered? For now, overall.
+    unsigned int ntx = overallTransmissions_;
+
+    if (! isAtLeastOneInState (TXHARQ_PDU_WAITING))
+        throw cRuntimeError("Feedback sent to an H-ARQ unit not waiting for it");
 
     if (a == HARQACK)
     {
@@ -136,8 +172,10 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
         //     correctly and which not. Keep a per-CBG status and mark only the corrupted CBGs as buffed (so they can be
         //     scheduled for re-transmission later). If any of the CBGs has reached the re-transmission limit, drop the whole
         //     TB, as usual.
+
+        // [2019-08-05] For now, just consider the feedback for the first CBG
         sample = 1;
-        if (transmissions_ == (maxHarqRtx_ + 1))
+        if (transmissions_ [0] == (maxHarqRtx_ + 1))
         {
             // discard
             EV << NOW << " LteHarqUnitTx::pduFeedback H-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
@@ -150,7 +188,7 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
         {
             // pdu_ ready for next transmission
             macOwner_->takeObj(pdu_);
-            status_ = TXHARQ_PDU_BUFFERED;
+            status_ [0] = TXHARQ_PDU_BUFFERED;
             EV << NOW << " LteHarqUnitTx::pduFeedbackH-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
                << pdu_->getId() << " set for RTX " << endl;
         }
@@ -206,24 +244,44 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
 
 bool LteHarqUnitTx::isEmpty()
 {
-    return (status_ == TXHARQ_PDU_EMPTY);
+    return (status_ == nullptr);
 }
 
 bool LteHarqUnitTx::isReady()
 {
-    return (status_ == TXHARQ_PDU_BUFFERED);
+    if (! status_) return false;
+
+    auto numCBGs = tb_->getNumCBGs();
+    for (std::size_t i = 0; i < numCBGs; ++i)
+        if (status_ [i] == TXHARQ_PDU_BUFFERED) return true;
+
+    return false;
+}
+
+bool LteHarqUnitTx::isAtLeastOneInState(TxHarqPduStatus state)
+{
+    if (! status_) return false;
+
+    auto numCBGs = tb_->getNumCBGs();
+    for (std::size_t i = 0; i < numCBGs; ++i)
+        if (status_ [i] == state) return true;
+
+    return false;
 }
 
 bool LteHarqUnitTx::selfNack()
 {
-    if (status_ == TXHARQ_PDU_WAITING)
+    if (isAtLeastOneInState (TXHARQ_PDU_WAITING))
         // wrong usage, manual nack now is dangerous (a real one may arrive too)
         throw cRuntimeError("LteHarqUnitTx::selfNack(): Trying to send self NACK to a unit waiting for feedback");
 
-    if (status_ != TXHARQ_PDU_BUFFERED)
+    if (isAtLeastOneInState (TXHARQ_PDU_BUFFERED))
         throw cRuntimeError("LteHarqUnitTx::selfNack(): Trying to send self NACK to an idle or selected unit");
 
-    transmissions_++;
+    // [2019-08-05] TODO: Generate a more complex NACK which maps the feedback
+    //     onto individual CBGs. This way it is easy to determine which re-transmission
+    //     counter to increase. For now, go with just the first CBG.
+    transmissions_ [0] ++;
     txTime_ = NOW;
     bool result = this->pduFeedback(HARQNACK);
     return result;
@@ -231,7 +289,7 @@ bool LteHarqUnitTx::selfNack()
 
 void LteHarqUnitTx::dropPdu()
 {
-    if (status_ != TXHARQ_PDU_BUFFERED)
+    if (! isAtLeastOneInState (TXHARQ_PDU_BUFFERED))
         throw cRuntimeError("LteHarqUnitTx::dropPdu(): H-ARQ TX unit: cannot drop pdu if state is not BUFFERED");
 
     resetUnit();
@@ -239,7 +297,9 @@ void LteHarqUnitTx::dropPdu()
 
 void LteHarqUnitTx::forceDropUnit()
 {
-    if (status_ == TXHARQ_PDU_BUFFERED || status_ == TXHARQ_PDU_SELECTED || status_ == TXHARQ_PDU_WAITING)
+    if (isAtLeastOneInState (TXHARQ_PDU_BUFFERED) ||
+        isAtLeastOneInState (TXHARQ_PDU_SELECTED) ||
+        isAtLeastOneInState (TXHARQ_PDU_WAITING))
     {
         delete pdu_;
         pdu_ = NULL;
@@ -259,13 +319,18 @@ LteHarqUnitTx::~LteHarqUnitTx()
 
 void LteHarqUnitTx::resetUnit()
 {
-    transmissions_ = 0;
+    if (transmissions_) delete [] transmissions_;
+    transmissions_ = nullptr;
+
+    overallTransmissions_ = 0;
+
     pduId_ = -1;
     if(pdu_ != NULL){
         delete pdu_;
         pdu_ = NULL;
     }
 
-    status_ = TXHARQ_PDU_EMPTY;
+    if (status_) delete [] status_;
+    status_ = nullptr;
     pduLength_ = 0;
 }

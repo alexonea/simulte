@@ -40,8 +40,12 @@ bool LteHarqUnitTxD2D::pduFeedback(HarqAcknowledgment a)
     UserControlInfo *lteInfo;
     lteInfo = check_and_cast<UserControlInfo *>(pdu_->getControlInfo());
     short unsigned int dir = lteInfo->getDirection();
-    unsigned int ntx = transmissions_;
-    if (!(status_ == TXHARQ_PDU_WAITING))
+
+    // [2019-08-05] TODO: which counter should be considered? For now, overall.
+    unsigned int ntx = overallTransmissions_;
+
+    if (! isAtLeastOneInState (TXHARQ_PDU_WAITING))
+        throw cRuntimeError("Feedback sent to an H-ARQ unit not waiting for it");
     throw cRuntimeError("Feedback sent to an H-ARQ unit not waiting for it");
 
     if (a == HARQACK)
@@ -55,8 +59,15 @@ bool LteHarqUnitTxD2D::pduFeedback(HarqAcknowledgment a)
     }
     else if (a == HARQNACK)
     {
+        // [2019-08-03] TODO: based on *some* probabilistic distribution, make a decision here which CBGs have been received
+        //     correctly and which not. Keep a per-CBG status and mark only the corrupted CBGs as buffed (so they can be
+        //     scheduled for re-transmission later). If any of the CBGs has reached the re-transmission limit, drop the whole
+        //     TB, as usual.
+
+        // [2019-08-05] For now, just consider the feedback for the first CBG
+
         sample = 1;
-        if (transmissions_ == (maxHarqRtx_ + 1))
+        if (transmissions_ [0] == (maxHarqRtx_ + 1))
         {
             // discard
             EV << NOW << " LteHarqUnitTxD2D::pduFeedback H-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
@@ -70,7 +81,7 @@ bool LteHarqUnitTxD2D::pduFeedback(HarqAcknowledgment a)
         {
             // pdu_ ready for next transmission
             macOwner_->takeObj(pdu_);
-            status_ = TXHARQ_PDU_BUFFERED;
+            status_ [0] = TXHARQ_PDU_BUFFERED;
             EV << NOW << " LteHarqUnitTxD2D::pduFeedbackH-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
                << pdu_->getId() << " set for RTX " << endl;
         }
@@ -157,17 +168,24 @@ bool LteHarqUnitTxD2D::pduFeedback(HarqAcknowledgment a)
 
 LteMacPdu *LteHarqUnitTxD2D::extractPdu()
 {
-    if (!(status_ == TXHARQ_PDU_SELECTED))
+    if (! isAtLeastOneInState(TXHARQ_PDU_SELECTED))
         throw cRuntimeError("Trying to extract macPdu from not selected H-ARQ unit");
 
+    // [2019-08-05] TODO: make txTime also per-CBG?
     txTime_ = NOW;
-    transmissions_++;
-    status_ = TXHARQ_PDU_WAITING; // waiting for feedback
+
+    auto numCBGs = tb_->getNumCBGs ();
+    for (std::size_t i = 0; i < numCBGs; ++i)
+    {
+        transmissions_ [i]++;
+        status_ [i] = TXHARQ_PDU_WAITING; // waiting for feedback
+    }
+
     UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
         pdu_->getControlInfo());
-    lteInfo->setTxNumber(transmissions_);
-    lteInfo->setNdi((transmissions_ == 1) ? true : false);
-    EV << "LteHarqUnitTxD2D::extractPdu - ndi set to " << ((transmissions_ == 1) ? "true" : "false") << endl;
+    lteInfo->setTxNumber(overallTransmissions_);
+    lteInfo->setNdi((overallTransmissions_ == 1) ? true : false);
+    EV << "LteHarqUnitTxD2D::extractPdu - ndi set to " << ((overallTransmissions_ == 1) ? "true" : "false") << endl;
 
     LteMacPdu* extractedPdu = pdu_->dup();
     if (lteInfo->getDirection() == D2D_MULTI)
