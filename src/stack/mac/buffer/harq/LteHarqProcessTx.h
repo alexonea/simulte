@@ -12,6 +12,8 @@
 
 #include "stack/mac/buffer/harq/LteHarqUnitTx.h"
 
+#include "stack/mac/packet/NRCodeBlockGroup_m.h"
+
 typedef std::vector<LteHarqUnitTx *> UnitVector;
 typedef std::pair<unsigned char, TxHarqPduStatus> UnitStatus;
 typedef std::vector<std::vector<UnitStatus> > BufferStatus;
@@ -83,6 +85,8 @@ class LteHarqProcessTx
     void markSelected(Codeword cw);
 
     virtual LteMacPdu *extractPdu(Codeword cw);
+
+    virtual std::vector <NRCodeBlockGroup *> extractSelectedCBGs(Codeword cw);
 
     bool pduFeedback(HarqAcknowledgment fb, Codeword cw);
 
