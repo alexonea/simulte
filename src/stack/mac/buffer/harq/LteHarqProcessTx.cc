@@ -18,7 +18,7 @@ LteHarqProcessTx::LteHarqProcessTx(unsigned char acid, unsigned int numUnits, un
     units_ = new UnitVector(numUnits);
     numProcesses_ = numProcesses;
     numEmptyUnits_ = numUnits; //++ @ insert, -- @ unit reset (ack or fourth nack)
-    numSelected_ = 0; //++ @ markSelected and insert, -- @ extract/sendDown
+    numSelected_ = 0; //++ @ markSelected and insert, -- @ extract/
     dropped_ = false;
 
     // H-ARQ unit instances
@@ -66,6 +66,16 @@ LteMacPdu *LteHarqProcessTx::extractPdu(Codeword cw)
     numSelected_--;
     LteMacPdu *pdu = (*units_)[cw]->extractPdu();
     return pdu;
+}
+
+std::vector <NRCodeBlockGroup *> LteHarqProcessTx::extractSelectedCBGs(Codeword cw)
+{
+    if (numSelected_ == 0)
+        throw cRuntimeError("H-ARQ TX process: cannot extract pdu: numSelected = 0 ");
+
+    numSelected_--;
+    auto res = (*units_)[cw]->extractSelectedCBGs();
+    return res;
 }
 
 bool LteHarqProcessTx::pduFeedback(HarqAcknowledgment fb, Codeword cw)
