@@ -78,6 +78,16 @@ std::vector <NRCodeBlockGroup *> LteHarqProcessTx::extractSelectedCBGs(Codeword 
     return res;
 }
 
+NRMacPacket * LteHarqProcessTx::extractMacPacket (Codeword cw)
+{
+    if (numSelected_ == 0)
+        throw cRuntimeError("H-ARQ TX process: cannot extract pdu: numSelected = 0 ");
+
+    numSelected_--;
+    auto res = (*units_)[cw]->extractMacPacket();
+    return res;
+}
+
 bool LteHarqProcessTx::pduFeedback(HarqAcknowledgment fb, Codeword cw)
 {
     // controllare se numempty == numunits e restituire true/false

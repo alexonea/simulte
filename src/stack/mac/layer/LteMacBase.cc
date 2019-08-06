@@ -21,6 +21,10 @@
 #include "stack/mac/buffer/LteMacBuffer.h"
 #include "assert.h"
 
+#include "stack/mac/packet/NRMacPacket_m.h"
+#include "stack/mac/packet/NRCodeBlockGroup_m.h"
+#include "stack/mac/packet/LteMacTransportBlock.h"
+
 LteMacBase::LteMacBase()
 {
     mbuf_.clear();
@@ -127,7 +131,12 @@ void LteMacBase::fromPhy(cPacket *pkt)
         //     CBGs. The LteMacPdu will be extracted from the CBGs and inserted into the buffers. Alternatively,
         //     the CBGs themselves can be introduced into the buffer, where the LteMacPdu is extracted and the
         //     usual process goes on.
-        LteMacPdu *pdu = check_and_cast<LteMacPdu *>(pkt);
+        // LteMacPdu *pdu = check_and_cast<LteMacPdu *>(pkt);
+        // NRCodeBlockGroup *cbg = check_and_cast <NRCodeBlockGroup *> (pkt);
+        NRMacPacket *macPkt = check_and_cast <NRMacPacket *> (pkt);
+        auto tb = macPkt->getTransportBlock();
+        LteMacPdu *pdu = tb->getPdu()->dup();
+
         Codeword cw = userInfo->getCw();
         HarqRxBuffers::iterator hrit = harqRxBuffers_.find(src);
         if (hrit != harqRxBuffers_.end())

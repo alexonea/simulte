@@ -9,6 +9,8 @@
 
 #include "stack/mac/buffer/harq/LteHarqBufferTx.h"
 
+#include "stack/mac/packet/NRMacPacket_m.h"
+
 LteHarqBufferTx::LteHarqBufferTx(unsigned int numProc, LteMacBase *owner, LteMacBase *dstMac)
 {
     numProc_ = numProc;
@@ -244,10 +246,9 @@ void LteHarqBufferTx::sendSelectedDown()
         // [2019-08-03] TODO: instead of extracting the LteMacPdu, we should extract only the CBGs selected for
         //     re-transmission.
         // LteMacPdu *pduToSend = (*processes_)[selectedAcid_]->extractPdu(*it);
-        std::vector <NRCodeBlockGroup *> vSelectedCBGs = (*processes_)[selectedAcid_]->extractSelectedCBGs(*it);
-
-        for (const auto & cbg : vSelectedCBGs)
-            macOwner_->sendLowerPackets(cbg);
+        // std::vector <NRCodeBlockGroup *> vSelectedCBGs = (*processes_)[selectedAcid_]->extractSelectedCBGs(*it);
+        NRMacPacket *pkt = (*processes_)[selectedAcid_]->extractMacPacket(*it);
+        macOwner_->sendLowerPackets(pkt);
 
         // debug output
         // EV << "\t H-ARQ TX: pdu (id " << pduToSend->getId() << " ) extracted from process " << (int)selectedAcid_ << " "

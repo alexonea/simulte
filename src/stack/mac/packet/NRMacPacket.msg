@@ -13,7 +13,8 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-cplusplus {{
+cplusplus
+{{
     #include <memory>
     #include "LteMacTransportBlock.h"
     
@@ -21,10 +22,10 @@ cplusplus {{
     // using LteMacTransportBlockPtr = std::shared_ptr <LteMacTransportBlock>;
     using LteMacTransportBlockPtr = LteMacTransportBlock *;
 }}
+
 class noncobject LteMacTransportBlockPtr;
 
-packet NRCodeBlockGroup
+packet NRMacPacket
 {
-    int id;
     LteMacTransportBlockPtr transportBlock;
 }
