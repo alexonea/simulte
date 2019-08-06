@@ -40,10 +40,14 @@ void LteHarqProcessRx::insertPdu(Codeword cw, LteMacPdu *pdu)
             macOwner_->getMacNodeId(), acid_, cw, ndi, status_.at(cw));
 
     // deallocate corrupted pdu received in previous transmissions
-    if (pdu_.at(cw) != NULL){
+    if (pdu_.at(cw) != NULL && status_.at(cw) != RXHARQ_PDU_EVALUATING){
             macOwner_->dropObj(pdu_.at(cw));
             delete pdu_.at(cw);
-    }
+    } else if (status_.at(cw) == RXHARQ_PDU_EVALUATING) return;
+
+    // [2019-08-06] TODO: Currently, we decide which CBG is corrupt at the transmitting side. It might be possible
+    //     to do it here instead, where the decider result is collected. In fact, it might be possible to get the
+    //     result directly per-CBG from the decider (much better?), especially in the case of URLLC traffic.
 
     // store new received pdu
     pdu_.at(cw) = pdu;
@@ -133,8 +137,9 @@ int64_t LteHarqProcessRx::getByteLength(Codeword cw)
 void LteHarqProcessRx::purgeCorruptedPdu(Codeword cw)
 {
     // drop ownership
-    if (pdu_.at(cw) != NULL)
-        macOwner_->dropObj(pdu_.at(cw));
+    // [2019-08-06] TODO: check ownership
+    // if (pdu_.at(cw) != NULL)
+    //     macOwner_->dropObj(pdu_.at(cw));
 
     delete pdu_.at(cw);
     pdu_.at(cw) = NULL;

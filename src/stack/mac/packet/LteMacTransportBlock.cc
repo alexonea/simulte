@@ -26,6 +26,9 @@ LteMacTransportBlock::LteMacTransportBlock (LteMacPdu * pPdu)
 , m_bCorrect         {false}
 {}
 
+LteMacTransportBlock::~LteMacTransportBlock()
+{}
+
 LteMacPdu *
 LteMacTransportBlock::extractPdu ()
 {
@@ -47,13 +50,7 @@ LteMacTransportBlock::setPdu (LteMacPdu * pPdu)
 std::size_t
 LteMacTransportBlock::getNumCBGs ()
 {
-    return m_nCodeBlockGroups;
-}
-
-void
-LteMacTransportBlock::setNumCBGs (std::size_t numCBGs)
-{
-    m_nCodeBlockGroups = numCBGs;
+    return m_vCodeBlockGroups.size ();
 }
 
 bool
@@ -66,4 +63,16 @@ void
 LteMacTransportBlock::setCorrect ()
 {
     m_bCorrect = true;
+}
+
+void
+LteMacTransportBlock::addCBG (NRCodeBlockGroup *cbg)
+{
+    m_vCodeBlockGroups.push_back (cbg);
+}
+
+NRCodeBlockGroup *
+LteMacTransportBlock::getCBG (std::size_t idx)
+{
+    return m_vCodeBlockGroups.at (idx);
 }

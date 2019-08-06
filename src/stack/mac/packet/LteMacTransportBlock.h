@@ -17,14 +17,18 @@
 #define STACK_MAC_PACKET_LTEMACTRANSPORTBLOCK_H_
 
 #include <memory>
+#include <vector>
 
 #include "LteMacPdu.h"
+
+class NRCodeBlockGroup;
 
 class LteMacTransportBlock
 {
 public:
     LteMacTransportBlock();
     LteMacTransportBlock(LteMacPdu * pPdu);
+    ~LteMacTransportBlock();
 
 public:
     LteMacPdu * getPdu ();
@@ -36,12 +40,15 @@ public:
     void        setCorrect ();
 
     std::size_t getNumCBGs ();
-    void        setNumCBGs (std::size_t numCBGs);
+
+    void        addCBG (NRCodeBlockGroup *cbg);
+    NRCodeBlockGroup * getCBG (std::size_t idx);
 
 private:
-    std::size_t                 m_nCodeBlockGroups;
-    std::unique_ptr <LteMacPdu> m_pdu;
-    bool                        m_bCorrect;
+    std::size_t                      m_nCodeBlockGroups;
+    std::unique_ptr <LteMacPdu>      m_pdu;
+    std::vector <NRCodeBlockGroup *> m_vCodeBlockGroups;
+    bool                             m_bCorrect;
 };
 
 #endif /* STACK_MAC_PACKET_LTEMACTRANSPORTBLOCK_H_ */

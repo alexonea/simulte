@@ -14,7 +14,7 @@
 LteHarqUnitTx::LteHarqUnitTx(unsigned char acid, Codeword cw,
     LteMacBase *macOwner, LteMacBase *dstMac)
 {
-    pdu_ = NULL;
+//    pdu_ = NULL;
     pduId_ = -1;
     acid_ = acid;
     cw_ = cw;
@@ -65,13 +65,19 @@ void LteHarqUnitTx::insertPdu(LteMacPdu *pdu)
     // [2019-08-03] TODO: Generate CBGs based on LteMacPdu and encapsulate them into a TB instance. Attach the
     //     TB instance to the LteMacPdu. Alternatively, propagate the TB instance instead of the LteMacPdu and
     //     reference the LteMacPdu from the TB instance.
-    if (tb_) delete tb_;
-    tb_ = new LteMacTransportBlock (pdu);
+    tb_.reset (new LteMacTransportBlock (pdu));
+
+    NRCodeBlockGroup *pCBG = new NRCodeBlockGroup ();
+    pCBG->setControlInfo (pdu->getControlInfo());
+    pCBG->setTransportBlock (tb_.get ());
+    pCBG->setByteLength (pdu->getByteLength ());
+
+    tb_->addCBG (pCBG);
 
     // [2019-08-05] TODO: compute the number of CBGs based on the size of the PDU
     unsigned numCBGs = tb_->getNumCBGs();
 
-    pdu_ = pdu;
+//    pdu_ = pdu;
     pduId_ = pdu->getId();
     // as unique MacPDUId the OMNET id is used (need separate member since it must not be changed by dup())
     pdu->setMacPduId(pdu->getId());
@@ -91,9 +97,9 @@ void LteHarqUnitTx::insertPdu(LteMacPdu *pdu)
         status_        [i] = TXHARQ_PDU_SELECTED;
     }
 
-    pduLength_ = pdu_->getByteLength();
+    pduLength_ = tb_->getPdu()->getByteLength();
     UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
-        pdu_->getControlInfo());
+        tb_->getPdu()->getControlInfo());
     lteInfo->setAcid(acid_);
     Codeword cw_old = lteInfo->getCw();
     if (cw_ != cw_old)
@@ -128,17 +134,19 @@ LteMacPdu *LteHarqUnitTx::extractPdu()
     auto numCBGs = tb_->getNumCBGs ();
     for (std::size_t i = 0; i < numCBGs; ++i)
     {
+        if (status_ [i] != TXHARQ_PDU_SELECTED) continue;
+
         transmissions_ [i]++;
         status_ [i] = TXHARQ_PDU_WAITING; // waiting for feedback
     }
 
     UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
-        pdu_->getControlInfo());
+        tb_->getPdu()->getControlInfo());
     lteInfo->setTxNumber(++overallTransmissions_);
     lteInfo->setNdi((overallTransmissions_ == 1) ? true : false);
     EV << "LteHarqUnitTx::extractPdu - ndi set to " << ((overallTransmissions_ == 1) ? "true" : "false") << endl;
 
-    LteMacPdu* extractedPdu = pdu_->dup();
+    LteMacPdu* extractedPdu = tb_->getPdu()->dup();
     macOwner_->takeObj(extractedPdu);
     return extractedPdu;
 }
@@ -156,15 +164,17 @@ std::vector <NRCodeBlockGroup *> LteHarqUnitTx::extractSelectedCBGs()
     auto numCBGs = tb_->getNumCBGs ();
     for (std::size_t i = 0; i < numCBGs; ++i)
     {
+        if (status_ [i] != TXHARQ_PDU_SELECTED) continue;
+
         transmissions_ [i]++;
         status_ [i] = TXHARQ_PDU_WAITING; // waiting for feedback
 
         // [2019-08-06] TODO: Add the corresponding CBG to the output vector
-        res.push_back (0);
+        res.push_back (tb_->getCBG (i));
     }
 
     UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
-        pdu_->getControlInfo());
+        tb_->getPdu()->getControlInfo());
     lteInfo->setTxNumber(++overallTransmissions_);
     lteInfo->setNdi((overallTransmissions_ == 1) ? true : false);
     EV << "LteHarqUnitTx::extractPdu - ndi set to " << ((overallTransmissions_ == 1) ? "true" : "false") << endl;
@@ -175,13 +185,54 @@ std::vector <NRCodeBlockGroup *> LteHarqUnitTx::extractSelectedCBGs()
     return res;
 }
 
+NRMacPacket * LteHarqUnitTx::extractMacPacket()
+{
+    if (! isAtLeastOneInState(TXHARQ_PDU_SELECTED))
+        throw cRuntimeError("Trying to extract macPdu from not selected H-ARQ unit");
+
+    NRMacPacket *pkt = new NRMacPacket ("NRMacPacket");
+    std::size_t byteLength = 0;
+
+    // [2019-08-05] TODO: make txTime also per-CBG?
+    txTime_ = NOW;
+
+    auto numCBGs = tb_->getNumCBGs ();
+    for (std::size_t i = 0; i < numCBGs; ++i)
+    {
+        if (status_ [i] != TXHARQ_PDU_SELECTED) continue;
+
+        transmissions_ [i]++;
+        status_ [i] = TXHARQ_PDU_WAITING; // waiting for feedback
+
+        byteLength += tb_->getCBG (i)->getByteLength ();
+    }
+
+    pkt->setByteLength (byteLength);
+
+    // [2019-08-07] TODO: is a shared pointer better, instead of .get()?
+    pkt->setTransportBlock(tb_.get());
+
+    UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
+        tb_->getPdu()->getControlInfo());
+    lteInfo->setTxNumber(++overallTransmissions_);
+    lteInfo->setNdi((overallTransmissions_ == 1) ? true : false);
+    EV << "LteHarqUnitTx::extractPdu - ndi set to " << ((overallTransmissions_ == 1) ? "true" : "false") << endl;
+
+    pkt->setControlInfo (lteInfo);
+
+    // [2019-08-06] TODO: Is this still necessary?
+    // LteMacPdu* extractedPdu = pdu_->dup();
+    macOwner_->takeObj(pkt);
+    return pkt;
+}
+
 bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
 {
     EV << "LteHarqUnitTx::pduFeedback - Welcome!" << endl;
     double sample;
     bool reset = false;
     UserControlInfo *lteInfo;
-    lteInfo = check_and_cast<UserControlInfo *>(pdu_->getControlInfo());
+    lteInfo = check_and_cast<UserControlInfo *>(tb_->getPdu()->getControlInfo());
     short unsigned int dir = lteInfo->getDirection();
 
     // [2019-08-05] TODO: which counter should be considered? For now, overall.
@@ -211,7 +262,7 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
         {
             // discard
             EV << NOW << " LteHarqUnitTx::pduFeedback H-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
-               << pdu_->getId() << " discarded "
+               << tb_->getPdu()->getId() << " discarded "
             "(max retransmissions reached) : " << maxHarqRtx_ << endl;
             resetUnit();
             reset = true;
@@ -219,10 +270,10 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
         else
         {
             // pdu_ ready for next transmission
-            macOwner_->takeObj(pdu_);
+            macOwner_->takeObj(tb_->getPdu());
             status_ [0] = TXHARQ_PDU_BUFFERED;
             EV << NOW << " LteHarqUnitTx::pduFeedbackH-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
-               << pdu_->getId() << " set for RTX " << endl;
+               << tb_->getPdu()->getId() << " set for RTX " << endl;
         }
     }
     else
@@ -329,19 +380,19 @@ void LteHarqUnitTx::dropPdu()
 
 void LteHarqUnitTx::forceDropUnit()
 {
-    if (isAtLeastOneInState (TXHARQ_PDU_BUFFERED) ||
-        isAtLeastOneInState (TXHARQ_PDU_SELECTED) ||
-        isAtLeastOneInState (TXHARQ_PDU_WAITING))
-    {
-        delete pdu_;
-        pdu_ = NULL;
-    }
+//    if (isAtLeastOneInState (TXHARQ_PDU_BUFFERED) ||
+//        isAtLeastOneInState (TXHARQ_PDU_SELECTED) ||
+//        isAtLeastOneInState (TXHARQ_PDU_WAITING))
+//    {
+//        delete pdu_;
+//        pdu_ = NULL;
+//    }
     resetUnit();
 }
 
 LteMacPdu *LteHarqUnitTx::getPdu()
 {
-    return pdu_;
+    return tb_->getPdu();
 }
 
 LteHarqUnitTx::~LteHarqUnitTx()
@@ -357,10 +408,12 @@ void LteHarqUnitTx::resetUnit()
     overallTransmissions_ = 0;
 
     pduId_ = -1;
-    if(pdu_ != NULL){
-        delete pdu_;
-        pdu_ = NULL;
-    }
+//    if(pdu_ != NULL){
+//        delete pdu_;
+//        pdu_ = NULL;
+//    }
+
+    tb_.release ();
 
     if (status_) delete [] status_;
     status_ = nullptr;

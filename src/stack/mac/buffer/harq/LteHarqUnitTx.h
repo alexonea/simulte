@@ -19,6 +19,9 @@
 
 #include "stack/mac/packet/LteMacTransportBlock.h"
 #include "stack/mac/packet/NRCodeBlockGroup_m.h"
+#include "stack/mac/packet/NRMacPacket_m.h"
+
+#include <memory>
 
 class LteMacBase;
 
@@ -40,8 +43,8 @@ class LteHarqUnitTx
   protected:
 
     /// Carried sub-burst
-    LteMacPdu *pdu_;
-    LteMacTransportBlock *tb_;
+    // LteMacPdu *pdu_;
+    std::unique_ptr <LteMacTransportBlock> tb_;
 
     /// Omnet ID of the pdu
     long pduId_;
@@ -135,6 +138,11 @@ class LteHarqUnitTx
     virtual std::vector <NRCodeBlockGroup *> extractSelectedCBGs();
 
     /**
+     * Returns the packet to be sent which includes all selected CBGs.
+     */
+    virtual NRMacPacket * extractMacPacket();
+
+    /**
      * Manages ACK/NACK.
      *
      * @param fb ACK or NACK for this H-ARQ unit
@@ -218,6 +226,8 @@ class LteHarqUnitTx
 
     virtual TxHarqPduStatus getStatus()
     {
+        if (! status_) return TXHARQ_PDU_EMPTY;
+
         // [2019-08-05] TODO: Return a more elaborate status including per-CBG indications. For now, we just return
         //     the status of the first CBG.
         return status_ [0];
