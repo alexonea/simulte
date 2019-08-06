@@ -14,6 +14,8 @@
 #include "stack/mac/packet/LteHarqFeedback_m.h"
 #include "stack/mac/buffer/harq/LteHarqProcessTx.h"
 
+#include "stack/mac/packet/NRCodeBlockGroup_m.h"
+
 /*
  * NOTA: e' compito del mac ul usare solo il processo di turno, non c'e' nessun controllo.
  * TODO: aggiungere supporto all'uplink: funzioni in cui si specifica il processo da usare

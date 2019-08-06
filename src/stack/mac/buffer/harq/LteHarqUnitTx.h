@@ -18,6 +18,7 @@
 #include "stack/mac/layer/LteMacBase.h"
 
 #include "stack/mac/packet/LteMacTransportBlock.h"
+#include "stack/mac/packet/NRCodeBlockGroup_m.h"
 
 class LteMacBase;
 
@@ -123,6 +124,15 @@ class LteHarqUnitTx
      * Before extraction, control info is updated with transmission counter and ndi.
      */
     virtual LteMacPdu *extractPdu();
+
+    /**
+     * Returns the CBGs to be sent and increments transmissions_ counter.
+     *
+     * The H-ARQ process containing this unit, must call this method in order
+     * to extract the pdu the Mac layer will send.
+     * Before extraction, control info is updated with transmission counter and ndi.
+     */
+    virtual std::vector <NRCodeBlockGroup *> extractSelectedCBGs();
 
     /**
      * Manages ACK/NACK.

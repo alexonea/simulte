@@ -143,6 +143,38 @@ LteMacPdu *LteHarqUnitTx::extractPdu()
     return extractedPdu;
 }
 
+std::vector <NRCodeBlockGroup *> LteHarqUnitTx::extractSelectedCBGs()
+{
+    if (! isAtLeastOneInState(TXHARQ_PDU_SELECTED))
+        throw cRuntimeError("Trying to extract macPdu from not selected H-ARQ unit");
+
+    std::vector <NRCodeBlockGroup *> res;
+
+    // [2019-08-05] TODO: make txTime also per-CBG?
+    txTime_ = NOW;
+
+    auto numCBGs = tb_->getNumCBGs ();
+    for (std::size_t i = 0; i < numCBGs; ++i)
+    {
+        transmissions_ [i]++;
+        status_ [i] = TXHARQ_PDU_WAITING; // waiting for feedback
+
+        // [2019-08-06] TODO: Add the corresponding CBG to the output vector
+        res.push_back (0);
+    }
+
+    UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
+        pdu_->getControlInfo());
+    lteInfo->setTxNumber(++overallTransmissions_);
+    lteInfo->setNdi((overallTransmissions_ == 1) ? true : false);
+    EV << "LteHarqUnitTx::extractPdu - ndi set to " << ((overallTransmissions_ == 1) ? "true" : "false") << endl;
+
+    // [2019-08-06] TODO: Is this still necessary?
+    // LteMacPdu* extractedPdu = pdu_->dup();
+    // macOwner_->takeObj(extractedPdu);
+    return res;
+}
+
 bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
 {
     EV << "LteHarqUnitTx::pduFeedback - Welcome!" << endl;
