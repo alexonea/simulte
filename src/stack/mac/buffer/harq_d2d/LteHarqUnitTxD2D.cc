@@ -38,7 +38,7 @@ bool LteHarqUnitTxD2D::pduFeedback(HarqAcknowledgment a)
     double sample;
     bool reset = false;
     UserControlInfo *lteInfo;
-    lteInfo = check_and_cast<UserControlInfo *>(pdu_->getControlInfo());
+    lteInfo = check_and_cast<UserControlInfo *>(tb_->getPdu()->getControlInfo());
     short unsigned int dir = lteInfo->getDirection();
 
     // [2019-08-05] TODO: which counter should be considered? For now, overall.
@@ -52,7 +52,7 @@ bool LteHarqUnitTxD2D::pduFeedback(HarqAcknowledgment a)
     {
         // pdu_ has been sent and received correctly
         EV << "\t pdu_ has been sent and received correctly " << endl;
-        pdu_->removeControlInfo();
+        tb_->getPdu()->removeControlInfo();
         resetUnit();
         reset = true;
         sample = 0;
@@ -71,19 +71,19 @@ bool LteHarqUnitTxD2D::pduFeedback(HarqAcknowledgment a)
         {
             // discard
             EV << NOW << " LteHarqUnitTxD2D::pduFeedback H-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
-               << pdu_->getId() << " discarded "
+               << tb_->getPdu()->getId() << " discarded "
             "(max retransmissions reached) : " << maxHarqRtx_ << endl;
-            pdu_->removeControlInfo();
+            tb_->getPdu()->removeControlInfo();
             resetUnit();
             reset = true;
         }
         else
         {
             // pdu_ ready for next transmission
-            macOwner_->takeObj(pdu_);
+            macOwner_->takeObj(tb_->getPdu());
             status_ [0] = TXHARQ_PDU_BUFFERED;
             EV << NOW << " LteHarqUnitTxD2D::pduFeedbackH-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
-               << pdu_->getId() << " set for RTX " << endl;
+               << tb_->getPdu()->getId() << " set for RTX " << endl;
         }
     }
     else
@@ -182,12 +182,12 @@ LteMacPdu *LteHarqUnitTxD2D::extractPdu()
     }
 
     UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
-        pdu_->getControlInfo());
+        tb_->getPdu()->getControlInfo());
     lteInfo->setTxNumber(overallTransmissions_);
     lteInfo->setNdi((overallTransmissions_ == 1) ? true : false);
     EV << "LteHarqUnitTxD2D::extractPdu - ndi set to " << ((overallTransmissions_ == 1) ? "true" : "false") << endl;
 
-    LteMacPdu* extractedPdu = pdu_->dup();
+    LteMacPdu* extractedPdu = tb_->getPdu()->dup();
     if (lteInfo->getDirection() == D2D_MULTI)
     {
         // for multicast, there is no feedback to wait, so reset the unit.

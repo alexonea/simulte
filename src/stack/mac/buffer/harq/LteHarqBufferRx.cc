@@ -151,7 +151,10 @@ std::list<LteMacPdu *> LteHarqBufferRx::extractCorrectPdus()
                     macUe_->emit(macThroughput_, tputSample);
                 }
 
-                macOwner_->dropObj(temp);
+                // [2019-08-06] TODO: check ownership of objects.
+                // macOwner_->dropObj(temp);
+                macOwner_->takeObj(temp);
+
                 ret.push_back(temp);
                 acid = i;
 
