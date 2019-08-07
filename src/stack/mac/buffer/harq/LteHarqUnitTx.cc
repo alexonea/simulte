@@ -11,6 +11,8 @@
 #include "stack/mac/layer/LteMacEnb.h"
 #include <omnetpp.h>
 
+#include <vector>
+
 LteHarqUnitTx::LteHarqUnitTx(unsigned char acid, Codeword cw,
     LteMacBase *macOwner, LteMacBase *dstMac)
 {
@@ -18,13 +20,13 @@ LteHarqUnitTx::LteHarqUnitTx(unsigned char acid, Codeword cw,
     pduId_ = -1;
     acid_ = acid;
     cw_ = cw;
-    transmissions_ = nullptr;
     overallTransmissions_ = 0;
     txTime_ = 0;
-    status_ = nullptr;
     macOwner_ = macOwner;
     dstMac_ = dstMac;
     maxHarqRtx_ = macOwner->par("maxHarqRtx");
+
+    rng_ = std::unique_ptr <cRNG> (new omnetpp::cMersenneTwister ());
 
     if (macOwner_->getNodeType() == ENODEB)
     {
@@ -67,12 +69,11 @@ void LteHarqUnitTx::insertPdu(LteMacPdu *pdu)
     //     reference the LteMacPdu from the TB instance.
     tb_.reset (new LteMacTransportBlock (pdu));
 
-    NRCodeBlockGroup *pCBG = new NRCodeBlockGroup ();
-    pCBG->setControlInfo (pdu->getControlInfo());
-    pCBG->setTransportBlock (tb_.get ());
-    pCBG->setByteLength (pdu->getByteLength ());
-
-    tb_->addCBG (pCBG);
+//    NRCodeBlockGroup *pCBG = new NRCodeBlockGroup ();
+//    pCBG->setTransportBlock (tb_.get ());
+//    pCBG->setByteLength (pdu->getByteLength ());
+//
+//    tb_->addCBG (pCBG);
 
     // [2019-08-05] TODO: compute the number of CBGs based on the size of the PDU
     unsigned numCBGs = tb_->getNumCBGs();
@@ -82,20 +83,11 @@ void LteHarqUnitTx::insertPdu(LteMacPdu *pdu)
     // as unique MacPDUId the OMNET id is used (need separate member since it must not be changed by dup())
     pdu->setMacPduId(pdu->getId());
 
-    // [2019-08-05] we keep re-transmission count and status for each individual CBG.
-    if (transmissions_) delete [] transmissions_;
-    transmissions_ = new unsigned char [numCBGs];
-
     overallTransmissions_ = 0;
 
-    if (status_) delete [] status_;
-    status_ = new TxHarqPduStatus [numCBGs];
-
-    for (std::size_t i = 0; i < numCBGs; ++i)
-    {
-        transmissions_ [i] = 0;
-        status_        [i] = TXHARQ_PDU_SELECTED;
-    }
+    // [2019-08-05] we keep re-transmission count and status for each individual CBG.
+    transmissions_ = std::vector <unsigned char> (numCBGs, 0);
+    status_ = std::vector <TxHarqPduStatus> (numCBGs, TXHARQ_PDU_SELECTED);
 
     pduLength_ = tb_->getPdu()->getByteLength();
     UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(
@@ -258,22 +250,66 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
 
         // [2019-08-05] For now, just consider the feedback for the first CBG
         sample = 1;
-        if (transmissions_ [0] == (maxHarqRtx_ + 1))
+
+        std::size_t numCBGs = tb_->getNumCBGs ();
+        std::vector <std::size_t> corruptCBGs;
         {
-            // discard
-            EV << NOW << " LteHarqUnitTx::pduFeedback H-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
-               << tb_->getPdu()->getId() << " discarded "
-            "(max retransmissions reached) : " << maxHarqRtx_ << endl;
-            resetUnit();
-            reset = true;
+            cExponential random (rng_.get (), 1);
+
+            // [2019-08-07] TODO: Restore to 0 initial value
+            std::size_t numCorrupt = 1;
+
+            while (numCorrupt <= 0)
+            {
+                double r = random.draw();
+                int raw = int (r + 0.5 - (r < 0));
+
+                numCorrupt = numCBGs - raw;
+            }
+
+            assert (numCorrupt > 0 && numCorrupt <= numCBGs);
+
+            while (numCorrupt > 0)
+            {
+                std::size_t next = rng_->intRand (numCBGs);
+
+                assert (next == 0);
+
+                auto it = std::find (corruptCBGs.begin (), corruptCBGs.end(), next);
+                if (it == corruptCBGs.end ())
+                {
+                    corruptCBGs.push_back (next);
+                    numCorrupt--;
+                }
+            }
         }
-        else
+
+        // Start by assuming all ACK
+        status_.resize (numCBGs, TXHARQ_CBG_CORRECT);
+
+        // Then, only set the corrupt CBGs
+        for (auto idx : corruptCBGs)
         {
-            // pdu_ ready for next transmission
-            macOwner_->takeObj(tb_->getPdu());
-            status_ [0] = TXHARQ_PDU_BUFFERED;
-            EV << NOW << " LteHarqUnitTx::pduFeedbackH-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
-               << tb_->getPdu()->getId() << " set for RTX " << endl;
+            // [2019-08-08] TODO: transmissions are overall always. Get rid of per CBG transmission counter.
+            if (transmissions_ [idx] == (maxHarqRtx_ + 1))
+            {
+                // discard
+                EV << NOW << " LteHarqUnitTx::pduFeedback H-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
+                   << tb_->getPdu()->getId() << " discarded "
+                "(max retransmissions reached) : " << maxHarqRtx_ << endl;
+                resetUnit();
+                reset = true;
+                break;
+            }
+            else
+            {
+                // pdu_ ready for next transmission
+                // [2019-08-07] TODO: Is taking ownership necessary?
+                macOwner_->takeObj(tb_->getPdu());
+                status_ [idx] = TXHARQ_PDU_BUFFERED;
+                EV << NOW << " LteHarqUnitTx::pduFeedbackH-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
+                   << tb_->getPdu()->getId() << " set for RTX " << endl;
+            }
         }
     }
     else
@@ -327,12 +363,12 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
 
 bool LteHarqUnitTx::isEmpty()
 {
-    return (status_ == nullptr);
+    return (! status_.size ());
 }
 
 bool LteHarqUnitTx::isReady()
 {
-    if (! status_) return false;
+    if (! status_.size ()) return false;
 
     auto numCBGs = tb_->getNumCBGs();
     for (std::size_t i = 0; i < numCBGs; ++i)
@@ -343,7 +379,7 @@ bool LteHarqUnitTx::isReady()
 
 bool LteHarqUnitTx::isAtLeastOneInState(TxHarqPduStatus state)
 {
-    if (! status_) return false;
+    if (! status_.size ()) return false;
 
     auto numCBGs = tb_->getNumCBGs();
     for (std::size_t i = 0; i < numCBGs; ++i)
@@ -402,9 +438,7 @@ LteHarqUnitTx::~LteHarqUnitTx()
 
 void LteHarqUnitTx::resetUnit()
 {
-    if (transmissions_) delete [] transmissions_;
-    transmissions_ = nullptr;
-
+    transmissions_.resize (0);
     overallTransmissions_ = 0;
 
     pduId_ = -1;
@@ -415,7 +449,6 @@ void LteHarqUnitTx::resetUnit()
 
     tb_.release ();
 
-    if (status_) delete [] status_;
-    status_ = nullptr;
+    status_.resize (0);
     pduLength_ = 0;
 }

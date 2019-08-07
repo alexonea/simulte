@@ -36,19 +36,14 @@ public:
 
     LteMacPdu * extractPdu ();
 
-    bool        isCorrect  ();
-    void        setCorrect ();
-
     std::size_t getNumCBGs ();
-
-    void        addCBG (NRCodeBlockGroup *cbg);
     NRCodeBlockGroup * getCBG (std::size_t idx);
 
 private:
-    std::size_t                      m_nCodeBlockGroups;
+    void do_generateCodeBlockGroups ();
+
     std::unique_ptr <LteMacPdu>      m_pdu;
     std::vector <NRCodeBlockGroup *> m_vCodeBlockGroups;
-    bool                             m_bCorrect;
 };
 
 #endif /* STACK_MAC_PACKET_LTEMACTRANSPORTBLOCK_H_ */
