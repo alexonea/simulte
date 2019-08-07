@@ -724,7 +724,9 @@ enum TxHarqPduStatus
     /// no pdu inside this process (empty process)
     TXHARQ_PDU_EMPTY,
     /// pdu selected for transmission
-    TXHARQ_PDU_SELECTED
+    TXHARQ_PDU_SELECTED,
+    /// CBG correctly received
+    TXHARQ_CBG_CORRECT
 };
 
 /// RX H-ARQ pdu status

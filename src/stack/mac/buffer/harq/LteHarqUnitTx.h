@@ -22,6 +22,7 @@
 #include "stack/mac/packet/NRMacPacket_m.h"
 
 #include <memory>
+#include <vector>
 
 class LteMacBase;
 
@@ -46,6 +47,11 @@ class LteHarqUnitTx
     // LteMacPdu *pdu_;
     std::unique_ptr <LteMacTransportBlock> tb_;
 
+    // [2019-08-08] We are not allowed to re-use any of the already used RNGs
+    //     since this will interfere with the results. We create a new instance
+    //     for each HARQ TX Unit.
+    std::unique_ptr <cRNG> rng_;
+
     /// Omnet ID of the pdu
     long pduId_;
 
@@ -59,10 +65,10 @@ class LteHarqUnitTx
     Codeword cw_;
 
     /// Number of (re)transmissions for current pdu (N.B.: values are 1,2,3,4)
-    unsigned char *transmissions_;
+    std::vector <unsigned char> transmissions_;
     unsigned char overallTransmissions_;
 
-    TxHarqPduStatus *status_;
+    std::vector <TxHarqPduStatus> status_;
 
     /// TTI at which the pdu has been transmitted
     simtime_t txTime_;
@@ -226,11 +232,12 @@ class LteHarqUnitTx
 
     virtual TxHarqPduStatus getStatus()
     {
-        if (! status_) return TXHARQ_PDU_EMPTY;
-
         // [2019-08-05] TODO: Return a more elaborate status including per-CBG indications. For now, we just return
         //     the status of the first CBG.
-        return status_ [0];
+        return (isAtLeastOneInState(TXHARQ_PDU_WAITING) ? TXHARQ_PDU_WAITING :
+                isAtLeastOneInState(TXHARQ_PDU_SELECTED) ? TXHARQ_PDU_SELECTED :
+                isAtLeastOneInState(TXHARQ_PDU_BUFFERED) ? TXHARQ_PDU_BUFFERED :
+                TXHARQ_PDU_EMPTY);
     }
 
     virtual ~LteHarqUnitTx();
