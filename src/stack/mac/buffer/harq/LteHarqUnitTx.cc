@@ -251,57 +251,65 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
         // [2019-08-05] For now, just consider the feedback for the first CBG
         sample = 1;
 
-        std::size_t numCBGs = tb_->getNumCBGs ();
-        std::vector <std::size_t> corruptCBGs;
+        // [2019-08-08] TODO: transmissions are overall always. Get rid of per CBG transmission counter.
+        if (overallTransmissions_ == (maxHarqRtx_ + 1))
         {
-            cExponential random (rng_.get (), 1);
-
-            // [2019-08-07] TODO: Restore to 0 initial value
-            std::size_t numCorrupt = 1;
-
-            while (numCorrupt <= 0)
+            // discard
+            EV << NOW << " LteHarqUnitTx::pduFeedback H-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
+               << tb_->getPdu()->getId() << " discarded "
+            "(max retransmissions reached) : " << maxHarqRtx_ << endl;
+            resetUnit();
+            reset = true;
+        }
+        else
+        {
+            std::size_t numCBGs = tb_->getNumCBGs ();
+            std::vector <std::size_t> corruptCBGs;
             {
-                double r = random.draw();
-                int raw = int (r + 0.5 - (r < 0));
-
-                numCorrupt = numCBGs - raw;
-            }
-
-            assert (numCorrupt > 0 && numCorrupt <= numCBGs);
-
-            while (numCorrupt > 0)
-            {
-                std::size_t next = rng_->intRand (numCBGs);
-
-                assert (next == 0);
-
-                auto it = std::find (corruptCBGs.begin (), corruptCBGs.end(), next);
-                if (it == corruptCBGs.end ())
+                // Get a list of candidate CBGs for corruption
+                std::vector <std::size_t> candidates;
+                for (std::size_t i = 0; i < numCBGs; ++i)
                 {
-                    corruptCBGs.push_back (next);
-                    numCorrupt--;
+                    if (status_ [i] != TXHARQ_CBG_CORRECT)
+                        candidates.push_back (i);
+                }
+
+                std::size_t maxCorrupt = candidates.size ();
+                assert (maxCorrupt > 0);
+
+                cExponential random (rng_.get (), 1);
+
+                // [2019-08-07] TODO: Restore to 0 initial value
+                std::size_t numCorrupt = 1;
+
+                while (numCorrupt <= 0)
+                {
+                    double r = random.draw();
+                    int raw = int (r + 0.5 - (r < 0));
+
+                    numCorrupt = maxCorrupt - raw;
+                }
+
+                assert (numCorrupt > 0 && numCorrupt <= maxCorrupt);
+
+                while (numCorrupt > 0)
+                {
+                    std::size_t next = rng_->intRand (maxCorrupt);
+
+                    auto it = std::find (corruptCBGs.begin (), corruptCBGs.end(), candidates [next]);
+                    if (it == corruptCBGs.end ())
+                    {
+                        corruptCBGs.push_back (candidates [next]);
+                        numCorrupt--;
+                    }
                 }
             }
-        }
 
-        // Start by assuming all ACK
-        status_.resize (numCBGs, TXHARQ_CBG_CORRECT);
+            // Start by assuming all ACK
+            status_ = std::vector <TxHarqPduStatus> (numCBGs, TXHARQ_CBG_CORRECT);
 
-        // Then, only set the corrupt CBGs
-        for (auto idx : corruptCBGs)
-        {
-            // [2019-08-08] TODO: transmissions are overall always. Get rid of per CBG transmission counter.
-            if (transmissions_ [idx] == (maxHarqRtx_ + 1))
-            {
-                // discard
-                EV << NOW << " LteHarqUnitTx::pduFeedback H-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
-                   << tb_->getPdu()->getId() << " discarded "
-                "(max retransmissions reached) : " << maxHarqRtx_ << endl;
-                resetUnit();
-                reset = true;
-                break;
-            }
-            else
+            // Then, only set the corrupt CBGs
+            for (auto idx : corruptCBGs)
             {
                 // pdu_ ready for next transmission
                 // [2019-08-07] TODO: Is taking ownership necessary?
@@ -359,6 +367,18 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
     }
 
     return reset;
+}
+
+inet::int64 LteHarqUnitTx::getNextTransmissionLength()
+{
+    inet::int64 totalBytes = 0;
+    std::size_t numCBGs = tb_->getNumCBGs ();
+
+    for (std::size_t i = 0; i < numCBGs; ++i)
+        if (status_ [i] != TXHARQ_CBG_CORRECT)
+            totalBytes += tb_->getCBG (i)->getByteLength ();
+
+    return totalBytes;
 }
 
 bool LteHarqUnitTx::isEmpty()
