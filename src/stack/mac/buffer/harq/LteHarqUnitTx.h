@@ -210,10 +210,7 @@ class LteHarqUnitTx
         return overallTransmissions_;
     }
 
-    virtual inet::int64 getPduLength()
-    {
-        return pduLength_;
-    }
+    virtual inet::int64 getNextTransmissionLength();
 
     virtual simtime_t getTxTime()
     {
@@ -234,9 +231,9 @@ class LteHarqUnitTx
     {
         // [2019-08-05] TODO: Return a more elaborate status including per-CBG indications. For now, we just return
         //     the status of the first CBG.
-        return (isAtLeastOneInState(TXHARQ_PDU_WAITING) ? TXHARQ_PDU_WAITING :
+        return (isAtLeastOneInState(TXHARQ_PDU_BUFFERED) ? TXHARQ_PDU_BUFFERED :
                 isAtLeastOneInState(TXHARQ_PDU_SELECTED) ? TXHARQ_PDU_SELECTED :
-                isAtLeastOneInState(TXHARQ_PDU_BUFFERED) ? TXHARQ_PDU_BUFFERED :
+                isAtLeastOneInState(TXHARQ_PDU_WAITING) ? TXHARQ_PDU_WAITING :
                 TXHARQ_PDU_EMPTY);
     }
 
