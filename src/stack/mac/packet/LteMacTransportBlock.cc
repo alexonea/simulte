@@ -69,24 +69,26 @@ LteMacTransportBlock::do_generateCodeBlockGroups ()
     std::size_t totalBytes = m_pdu->getByteLength ();
     assert (totalBytes != 0);
 
-    const std::size_t availableNumCBGs[] = { /*8, 6, 4, 2,*/ 1};
+    const std::size_t availableNumCBGs[] = { 8, 6, 4, 2, 1};
     std::size_t numCBGsIdx = 0;
     std::size_t cbgSize;
 
     // check which number of CBGs is suitable depending on the total pdu size
-    while ((cbgSize = (totalBytes / availableNumCBGs [numCBGsIdx])) == 0)
+    while ((cbgSize = int (ceil (float (totalBytes) / availableNumCBGs [numCBGsIdx]))) == 0)
         numCBGsIdx++;
 
     std::size_t numCBGs = availableNumCBGs [numCBGsIdx];
-    while (numCBGs > 0)
+    while (numCBGs > 0 && totalBytes > 0)
     {
+        std::size_t bytes = (totalBytes >= cbgSize) ? cbgSize : totalBytes;
+
         NRCodeBlockGroup *cbg = new NRCodeBlockGroup ("NRCodeBlockGroup");
         cbg->setTransportBlock (this);
-        cbg->setByteLength ((totalBytes >= cbgSize) ? cbgSize : totalBytes);
+        cbg->setByteLength (bytes);
 
         m_vCodeBlockGroups.push_back (cbg);
 
-        totalBytes -= cbgSize;
+        totalBytes -= bytes;
         numCBGs--;
     }
 
