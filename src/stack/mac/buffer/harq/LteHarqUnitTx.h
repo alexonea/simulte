@@ -50,7 +50,7 @@ class LteHarqUnitTx
     // [2019-08-08] We are not allowed to re-use any of the already used RNGs
     //     since this will interfere with the results. We create a new instance
     //     for each HARQ TX Unit.
-    std::unique_ptr <cRNG> rng_;
+    std::unique_ptr <cExponential> random_;
 
     /// Omnet ID of the pdu
     long pduId_;

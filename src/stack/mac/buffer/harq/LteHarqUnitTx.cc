@@ -26,7 +26,7 @@ LteHarqUnitTx::LteHarqUnitTx(unsigned char acid, Codeword cw,
     dstMac_ = dstMac;
     maxHarqRtx_ = macOwner->par("maxHarqRtx");
 
-    rng_ = std::unique_ptr <cRNG> (new omnetpp::cMersenneTwister ());
+    random_ = std::unique_ptr <cExponential> (new cExponential (getEnvir ()->getRNG (1), 1));
 
     if (macOwner_->getNodeType() == ENODEB)
     {
@@ -277,14 +277,12 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
                 std::size_t maxCorrupt = candidates.size ();
                 assert (maxCorrupt > 0);
 
-                cExponential random (rng_.get (), 1);
-
                 // [2019-08-07] TODO: Restore to 0 initial value
                 std::size_t numCorrupt = 1;
 
                 while (numCorrupt <= 0)
                 {
-                    double r = random.draw();
+                    double r = random_->draw ();
                     int raw = int (r + 0.5 - (r < 0));
 
                     numCorrupt = maxCorrupt - raw;
@@ -294,7 +292,7 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
 
                 while (numCorrupt > 0)
                 {
-                    std::size_t next = rng_->intRand (maxCorrupt);
+                    std::size_t next = getEnvir ()->getRNG (1)->intRand (maxCorrupt);
 
                     auto it = std::find (corruptCBGs.begin (), corruptCBGs.end(), candidates [next]);
                     if (it == corruptCBGs.end ())
