@@ -13,6 +13,8 @@
 #include "stack/mac/layer/LteMacBase.h"
 #include "stack/mac/buffer/harq/LteHarqProcessRx.h"
 
+#include "stack/mac/packet/LteMacTransportBlock.h"
+
 class LteMacBase;
 class LteHarqProcessRx;
 
@@ -65,7 +67,7 @@ class LteHarqBufferRx
      *
      * @param pdu to be inserted
      */
-    virtual void insertPdu(Codeword cw, LteMacPdu *pdu);
+    virtual void insertPdu(Codeword cw, LteMacTransportBlock *pdu);
 
     /**
      * Sends feedback for all processes which are older than

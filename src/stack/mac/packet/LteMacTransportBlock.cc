@@ -21,7 +21,7 @@ LteMacTransportBlock::LteMacTransportBlock ()
 {}
 
 LteMacTransportBlock::LteMacTransportBlock (LteMacPdu * pPdu)
-: m_pdu              {pPdu}
+: m_pdu {pPdu}
 {
     do_generateCodeBlockGroups ();
 }
@@ -58,7 +58,7 @@ LteMacTransportBlock::getNumCBGs ()
 NRCodeBlockGroup *
 LteMacTransportBlock::getCBG (std::size_t idx)
 {
-    return m_vCodeBlockGroups.at (idx);
+    return m_vCodeBlockGroups.at (idx).first;
 }
 
 void
@@ -86,11 +86,36 @@ LteMacTransportBlock::do_generateCodeBlockGroups ()
         cbg->setTransportBlock (this);
         cbg->setByteLength (bytes);
 
-        m_vCodeBlockGroups.push_back (cbg);
+        m_vCodeBlockGroups.push_back (std::make_pair (cbg, CBG_STATE_UNKNOWN));
 
         totalBytes -= bytes;
         numCBGs--;
     }
 
     assert (totalBytes == 0);
+}
+
+std::size_t
+LteMacTransportBlock::getRemainingBytes ()
+{
+    std::size_t bytes = 0;
+
+    for (const auto cbgStatus : m_vCodeBlockGroups)
+        if (cbgStatus.second == CBG_STATE_UNKNOWN)
+            bytes += cbgStatus.first->getByteLength ();
+
+    return bytes;
+}
+
+void
+LteMacTransportBlock::setCbgState (std::size_t idx, bool state)
+{
+    m_vCodeBlockGroups.at (idx).second = state;
+}
+
+void
+LteMacTransportBlock::setAllState (bool state)
+{
+    for (auto & cbg : m_vCodeBlockGroups)
+        cbg.second = state;
 }

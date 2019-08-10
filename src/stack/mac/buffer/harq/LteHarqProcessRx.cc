@@ -15,7 +15,7 @@
 
 LteHarqProcessRx::LteHarqProcessRx(unsigned char acid, LteMacBase *owner)
 {
-    pdu_.resize(MAX_CODEWORDS, NULL);
+    tb_.resize(MAX_CODEWORDS, NULL);
     status_.resize(MAX_CODEWORDS, RXHARQ_PDU_EMPTY);
     rxTime_.resize(MAX_CODEWORDS, 0);
     result_.resize(MAX_CODEWORDS, false);
@@ -25,9 +25,9 @@ LteHarqProcessRx::LteHarqProcessRx(unsigned char acid, LteMacBase *owner)
     maxHarqRtx_ = owner->par("maxHarqRtx");
 }
 
-void LteHarqProcessRx::insertPdu(Codeword cw, LteMacPdu *pdu)
+void LteHarqProcessRx::insertPdu(Codeword cw, LteMacTransportBlock *tb)
 {
-    UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(pdu->getControlInfo());
+    UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(tb->getPdu()->getControlInfo());
     bool ndi = lteInfo->getNdi();
 
     EV << "LteHarqProcessRx::insertPdu - ndi is " << ndi << endl;
@@ -40,9 +40,9 @@ void LteHarqProcessRx::insertPdu(Codeword cw, LteMacPdu *pdu)
             macOwner_->getMacNodeId(), acid_, cw, ndi, status_.at(cw));
 
     // deallocate corrupted pdu received in previous transmissions
-    if (pdu_.at(cw) != NULL && status_.at(cw) != RXHARQ_PDU_EVALUATING){
-            macOwner_->dropObj(pdu_.at(cw));
-            delete pdu_.at(cw);
+    if (tb_.at(cw) != NULL && status_.at(cw) != RXHARQ_PDU_EVALUATING){
+            macOwner_->dropObj(tb_.at(cw)->getPdu());
+            // delete tb_.at(cw);
     } else if (status_.at(cw) == RXHARQ_PDU_EVALUATING) return;
 
     // [2019-08-06] TODO: Currently, we decide which CBG is corrupt at the transmitting side. It might be possible
@@ -50,7 +50,7 @@ void LteHarqProcessRx::insertPdu(Codeword cw, LteMacPdu *pdu)
     //     result directly per-CBG from the decider (much better?), especially in the case of URLLC traffic.
 
     // store new received pdu
-    pdu_.at(cw) = pdu;
+    tb_.at(cw) = tb;
     result_.at(cw) = lteInfo->getDeciderResult();
     status_.at(cw) = RXHARQ_PDU_EVALUATING;
     rxTime_.at(cw) = NOW;
@@ -71,12 +71,12 @@ LteHarqFeedback *LteHarqProcessRx::createFeedback(Codeword cw)
     if (!isEvaluated(cw))
         throw cRuntimeError("Cannot send feedback for a pdu not in EVALUATING state");
 
-    UserControlInfo *pduInfo = check_and_cast<UserControlInfo *>(pdu_.at(cw)->getControlInfo());
+    UserControlInfo *pduInfo = check_and_cast<UserControlInfo *>(tb_.at(cw)->getPdu()->getControlInfo());
     LteHarqFeedback *fb = new LteHarqFeedback();
     fb->setAcid(acid_);
     fb->setCw(cw);
     fb->setResult(result_.at(cw));
-    fb->setFbMacPduId(pdu_.at(cw)->getMacPduId());
+    fb->setFbMacPduId(tb_.at(cw)->getPdu()->getMacPduId());
     fb->setByteLength(0);
     UserControlInfo *fbInfo = new UserControlInfo();
     fbInfo->setSourceId(pduInfo->getDestId());
@@ -118,17 +118,19 @@ LteMacPdu* LteHarqProcessRx::extractPdu(Codeword cw)
         throw cRuntimeError("Cannot extract pdu if the state is not CORRECT");
 
     // temporary copy of pdu pointer because reset NULLs it, and I need to return it
-    LteMacPdu *pdu = pdu_.at(cw);
-    pdu_.at(cw) = NULL;
+    LteMacPdu *pdu = tb_.at(cw)->getPdu()->dup();
+    tb_.at(cw) = NULL;
     resetCodeword(cw);
     return pdu;
 }
 
 int64_t LteHarqProcessRx::getByteLength(Codeword cw)
 {
-    if (pdu_.at(cw) != NULL)
+    if (tb_.at(cw) != NULL)
     {
-        return pdu_.at(cw)->getByteLength();
+        // [2019-08-10] TODO: report the correct number of bytes (re-transmission only) because this is used
+        //     to rescheduled the retransmission.
+        return tb_.at(cw)->getRemainingBytes();
     }
     else
         return 0;
@@ -141,19 +143,19 @@ void LteHarqProcessRx::purgeCorruptedPdu(Codeword cw)
     // if (pdu_.at(cw) != NULL)
     //     macOwner_->dropObj(pdu_.at(cw));
 
-    delete pdu_.at(cw);
-    pdu_.at(cw) = NULL;
+    // delete tb_.at(cw);
+    tb_.at(cw) = NULL;
 }
 
 void LteHarqProcessRx::resetCodeword(Codeword cw)
 {
     // drop ownership
-    if (pdu_.at(cw) != NULL){
-        macOwner_->dropObj(pdu_.at(cw));
-        delete pdu_.at(cw);
+    if (tb_.at(cw) != NULL){
+        macOwner_->dropObj(tb_.at(cw)->getPdu());
+        // delete tb_.at(cw);
     }
 
-    pdu_.at(cw) = NULL;
+    tb_.at(cw) = NULL;
     status_.at(cw) = RXHARQ_PDU_EMPTY;
     rxTime_.at(cw) = 0;
     result_.at(cw) = false;
@@ -165,14 +167,14 @@ LteHarqProcessRx::~LteHarqProcessRx()
 {
     for (unsigned char i = 0; i < MAX_CODEWORDS; ++i)
     {
-        if (pdu_.at(i) != NULL)
+        if (tb_.at(i) != NULL)
         {
             cObject *mac = macOwner_;
-            if (pdu_.at(i)->getOwner() == mac)
+            if (tb_.at(i)->getPdu()->getOwner() == mac)
             {
-                delete pdu_.at(i);
+                // delete tb_.at(i);
             }
-            pdu_.at(i) = NULL;
+            tb_.at(i) = NULL;
         }
     }
 }

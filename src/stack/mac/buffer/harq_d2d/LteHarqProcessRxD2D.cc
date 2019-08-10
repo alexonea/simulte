@@ -27,7 +27,7 @@ LteHarqFeedback *LteHarqProcessRxD2D::createFeedback(Codeword cw)
     if (!isEvaluated(cw))
         throw cRuntimeError("Cannot send feedback for a pdu not in EVALUATING state");
 
-    UserControlInfo *pduInfo = check_and_cast<UserControlInfo *>(pdu_.at(cw)->getControlInfo());
+    UserControlInfo *pduInfo = check_and_cast<UserControlInfo *>(tb_.at(cw)->getPdu()->getControlInfo());
     LteHarqFeedback *fb;
 
     if (pduInfo->getDirection() == D2D_MULTI)
@@ -41,7 +41,7 @@ LteHarqFeedback *LteHarqProcessRxD2D::createFeedback(Codeword cw)
         fb->setAcid(acid_);
         fb->setCw(cw);
         fb->setResult(result_.at(cw));
-        fb->setFbMacPduId(pdu_.at(cw)->getId());
+        fb->setFbMacPduId(tb_.at(cw)->getPdu()->getId());
         fb->setByteLength(0);
         UserControlInfo *fbInfo = new UserControlInfo();
         fbInfo->setSourceId(pduInfo->getDestId());
@@ -56,8 +56,8 @@ LteHarqFeedback *LteHarqProcessRxD2D::createFeedback(Codeword cw)
         {
             // if the PDU belongs to a multicast/broadcast connection, then reset the codeword, since there will be no retransmission
             EV << NOW << " LteHarqProcessRxD2D::createFeedback - pdu for cw " << cw << " belonged to a multicast/broadcast connection. Resetting cw " << endl;
-            delete pdu_.at(cw);
-            pdu_.at(cw) = NULL;
+            // delete tb_.at(cw);
+            tb_.at(cw) = NULL;
             resetCodeword(cw);
         }
         else
