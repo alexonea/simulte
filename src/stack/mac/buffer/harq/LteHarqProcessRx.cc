@@ -56,6 +56,8 @@ void LteHarqProcessRx::insertPdu(Codeword cw, NRMacPacket *macPkt)
     rxTime_.at(cw) = NOW;
 
     transmissions_++;
+
+    delete macPkt;
 }
 
 bool LteHarqProcessRx::isEvaluated(Codeword cw)
@@ -169,11 +171,11 @@ LteHarqProcessRx::~LteHarqProcessRx()
     {
         if (tb_.at(i) != NULL)
         {
-            cObject *mac = macOwner_;
-            if (tb_.at(i)->getPdu()->getOwner() == mac)
-            {
-                // delete tb_.at(i);
-            }
+            // cObject *mac = macOwner_;
+            // if (tb_.at(i)->getPdu()->getOwner() == mac)
+            // {
+            //     delete tb_.at(i);
+            // }
             tb_.at(i) = NULL;
         }
     }

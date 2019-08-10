@@ -467,7 +467,7 @@ void LteHarqUnitTx::resetUnit()
 //        pdu_ = NULL;
 //    }
 
-    tb_.release ();
+    tb_.reset ();
 
     status_.resize (0);
     pduLength_ = 0;
