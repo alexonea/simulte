@@ -305,6 +305,7 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
 
             // Start by assuming all ACK
             status_ = std::vector <TxHarqPduStatus> (numCBGs, TXHARQ_CBG_CORRECT);
+            tb_->setAllState(CBG_STATE_CORRECT);
 
             // Then, only set the corrupt CBGs
             for (auto idx : corruptCBGs)
@@ -313,6 +314,7 @@ bool LteHarqUnitTx::pduFeedback(HarqAcknowledgment a)
                 // [2019-08-07] TODO: Is taking ownership necessary?
                 macOwner_->takeObj(tb_->getPdu());
                 status_ [idx] = TXHARQ_PDU_BUFFERED;
+                tb_->setCbgState (idx, CBG_STATE_UNKNOWN);
                 EV << NOW << " LteHarqUnitTx::pduFeedbackH-ARQ process  " << (unsigned int)acid_ << " Codeword " << cw_ << " PDU "
                    << tb_->getPdu()->getId() << " set for RTX " << endl;
             }

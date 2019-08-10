@@ -14,6 +14,8 @@
 
 #include "common/LteCommon.h"
 
+#include "stack/mac/packet/LteMacTransportBlock.h"
+
 typedef std::pair<unsigned char, RxHarqPduStatus> RxUnitStatus;
 typedef std::vector<std::vector<RxUnitStatus> > RxBufferStatus;
 
@@ -36,7 +38,7 @@ class LteHarqProcessRx
 {
   protected:
     /// contained pdus
-    std::vector<LteMacPdu *> pdu_;
+    std::vector<LteMacTransportBlock *> tb_;
 
     /// current status for each codeword
     std::vector<RxHarqPduStatus> status_;
@@ -73,7 +75,7 @@ class LteHarqProcessRx
      *
      * @param pdu pdu to be inserted
      */
-    virtual void insertPdu(Codeword cw, LteMacPdu *pdu);
+    virtual void insertPdu(Codeword cw, LteMacTransportBlock *tb);
 
     /**
      * Tells if contained pdus have been evaluated and feedback responses can be

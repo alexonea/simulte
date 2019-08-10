@@ -23,6 +23,9 @@
 
 class NRCodeBlockGroup;
 
+#define CBG_STATE_CORRECT true
+#define CBG_STATE_UNKNOWN false
+
 class LteMacTransportBlock
 {
 public:
@@ -39,11 +42,17 @@ public:
     std::size_t getNumCBGs ();
     NRCodeBlockGroup * getCBG (std::size_t idx);
 
+    std::size_t getRemainingBytes ();
+    void        setCbgState (std::size_t idx, bool state = CBG_STATE_CORRECT);
+    void        setAllState (bool state = CBG_STATE_CORRECT);
+
 private:
     void do_generateCodeBlockGroups ();
 
-    std::unique_ptr <LteMacPdu>      m_pdu;
-    std::vector <NRCodeBlockGroup *> m_vCodeBlockGroups;
+    using CBGStatus = std::pair <NRCodeBlockGroup*, bool>;
+
+    std::unique_ptr <LteMacPdu> m_pdu;
+    std::vector <CBGStatus>     m_vCodeBlockGroups;
 };
 
 #endif /* STACK_MAC_PACKET_LTEMACTRANSPORTBLOCK_H_ */

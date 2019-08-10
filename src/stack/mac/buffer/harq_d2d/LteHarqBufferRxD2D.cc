@@ -55,8 +55,9 @@ LteHarqBufferRxD2D::LteHarqBufferRxD2D(unsigned int num, LteMacBase *owner, MacN
     }
 }
 
-void LteHarqBufferRxD2D::insertPdu(Codeword cw, LteMacPdu *pdu)
+void LteHarqBufferRxD2D::insertPdu(Codeword cw, LteMacTransportBlock *tb)
 {
+    LteMacPdu *pdu = tb->getPdu();
     UserControlInfo *uInfo = check_and_cast<UserControlInfo *>(pdu->getControlInfo());
 
     MacNodeId srcId = uInfo->getSourceId();
@@ -64,13 +65,14 @@ void LteHarqBufferRxD2D::insertPdu(Codeword cw, LteMacPdu *pdu)
     {
         // if the HARQ processes have been aborted during this TTI (e.g. due to a D2D mode switch),
         // incoming packets should not be accepted
-        delete pdu;
+        // [2019-08-10] TODO: check ownership. See also non-D2D counterpart.
+        // delete pdu;
         return;
     }
 
     unsigned char acid = uInfo->getAcid();
     // TODO add codeword to inserPdu
-    processes_[acid]->insertPdu(cw, pdu);
+    processes_[acid]->insertPdu(cw, tb);
     // debug output
     EV << "H-ARQ RX: new pdu (id " << pdu->getId() << " ) inserted into process " << (int) acid << endl;
 }
