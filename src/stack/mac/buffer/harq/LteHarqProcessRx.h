@@ -15,6 +15,7 @@
 #include "common/LteCommon.h"
 
 #include "stack/mac/packet/LteMacTransportBlock.h"
+#include "stack/mac/packet/NRMacPacket_m.h"
 
 typedef std::pair<unsigned char, RxHarqPduStatus> RxUnitStatus;
 typedef std::vector<std::vector<RxUnitStatus> > RxBufferStatus;
@@ -75,7 +76,7 @@ class LteHarqProcessRx
      *
      * @param pdu pdu to be inserted
      */
-    virtual void insertPdu(Codeword cw, LteMacTransportBlock *tb);
+    virtual void insertPdu(Codeword cw, NRMacPacket *tb);
 
     /**
      * Tells if contained pdus have been evaluated and feedback responses can be

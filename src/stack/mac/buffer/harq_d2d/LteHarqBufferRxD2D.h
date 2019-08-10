@@ -50,7 +50,7 @@ class LteHarqBufferRxD2D : public LteHarqBufferRx
      *
      * @param pdu to be inserted
      */
-    virtual void insertPdu(Codeword cw, LteMacTransportBlock *tb);
+    virtual void insertPdu(Codeword cw, NRMacPacket *tb);
 
     /**
      * Sends feedback for all processes which are older than
