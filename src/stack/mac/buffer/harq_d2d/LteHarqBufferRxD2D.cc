@@ -55,10 +55,10 @@ LteHarqBufferRxD2D::LteHarqBufferRxD2D(unsigned int num, LteMacBase *owner, MacN
     }
 }
 
-void LteHarqBufferRxD2D::insertPdu(Codeword cw, LteMacTransportBlock *tb)
+void LteHarqBufferRxD2D::insertPdu(Codeword cw, NRMacPacket *macPkt)
 {
-    LteMacPdu *pdu = tb->getPdu();
-    UserControlInfo *uInfo = check_and_cast<UserControlInfo *>(pdu->getControlInfo());
+    LteMacPdu *pdu = macPkt->getTransportBlock()->getPdu();
+    UserControlInfo *uInfo = check_and_cast<UserControlInfo *>(macPkt->getControlInfo());
 
     MacNodeId srcId = uInfo->getSourceId();
     if (macOwner_->isHarqReset(srcId))
@@ -72,7 +72,7 @@ void LteHarqBufferRxD2D::insertPdu(Codeword cw, LteMacTransportBlock *tb)
 
     unsigned char acid = uInfo->getAcid();
     // TODO add codeword to inserPdu
-    processes_[acid]->insertPdu(cw, tb);
+    processes_[acid]->insertPdu(cw, macPkt);
     // debug output
     EV << "H-ARQ RX: new pdu (id " << pdu->getId() << " ) inserted into process " << (int) acid << endl;
 }

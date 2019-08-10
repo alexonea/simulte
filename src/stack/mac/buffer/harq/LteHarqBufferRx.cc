@@ -49,9 +49,9 @@ LteHarqBufferRx::LteHarqBufferRx(unsigned int num, LteMacBase *owner,
     }
 }
 
-void LteHarqBufferRx::insertPdu(Codeword cw, LteMacTransportBlock *tb)
+void LteHarqBufferRx::insertPdu(Codeword cw, NRMacPacket *macPkt)
 {
-    UserControlInfo *uInfo = check_and_cast<UserControlInfo *>(tb->getPdu()->getControlInfo());
+    UserControlInfo *uInfo = check_and_cast<UserControlInfo *>(macPkt->getControlInfo());
     MacNodeId srcId = uInfo->getSourceId();
     if (macOwner_->isHarqReset(srcId))
     {
@@ -64,9 +64,9 @@ void LteHarqBufferRx::insertPdu(Codeword cw, LteMacTransportBlock *tb)
     }
     unsigned char acid = uInfo->getAcid();
     // TODO add codeword to inserPdu
-    processes_[acid]->insertPdu(cw, tb);
+    processes_[acid]->insertPdu(cw, macPkt);
     // debug output
-    EV << "H-ARQ RX: new pdu (id " << tb->getPdu()->getId()
+    EV << "H-ARQ RX: new pdu (id " << macPkt->getTransportBlock()->getPdu()->getId()
        << " ) inserted into process " << (int) acid << endl;
 }
 
