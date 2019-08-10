@@ -27,7 +27,10 @@ LteMacTransportBlock::LteMacTransportBlock (LteMacPdu * pPdu)
 }
 
 LteMacTransportBlock::~LteMacTransportBlock()
-{}
+{
+    for (auto cbg : m_vCodeBlockGroups)
+        delete cbg.first;
+}
 
 LteMacPdu *
 LteMacTransportBlock::extractPdu ()
