@@ -210,7 +210,7 @@ NRMacPacket * LteHarqUnitTx::extractMacPacket()
     lteInfo->setNdi((overallTransmissions_ == 1) ? true : false);
     EV << "LteHarqUnitTx::extractPdu - ndi set to " << ((overallTransmissions_ == 1) ? "true" : "false") << endl;
 
-    pkt->setControlInfo (lteInfo);
+    pkt->setControlInfo (lteInfo->dup());
 
     // [2019-08-06] TODO: Is this still necessary?
     // LteMacPdu* extractedPdu = pdu_->dup();

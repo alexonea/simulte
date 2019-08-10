@@ -134,13 +134,14 @@ void LteMacBase::fromPhy(cPacket *pkt)
         // LteMacPdu *pdu = check_and_cast<LteMacPdu *>(pkt);
         // NRCodeBlockGroup *cbg = check_and_cast <NRCodeBlockGroup *> (pkt);
         NRMacPacket *macPkt = check_and_cast <NRMacPacket *> (pkt);
-        auto tb = macPkt->getTransportBlock();
 
         Codeword cw = userInfo->getCw();
+//        assert (userInfo == tb->getPdu()->getControlInfo());
+
         HarqRxBuffers::iterator hrit = harqRxBuffers_.find(src);
         if (hrit != harqRxBuffers_.end())
         {
-            hrit->second->insertPdu(cw,tb);
+            hrit->second->insertPdu(cw,macPkt);
         }
         else
         {
@@ -152,7 +153,7 @@ void LteMacBase::fromPhy(cPacket *pkt)
                 hrb = new LteHarqBufferRxD2D(ENB_RX_HARQ_PROCESSES, this,src, (userInfo->getDirection() == D2D_MULTI) );
 
             harqRxBuffers_[src] = hrb;
-            hrb->insertPdu(cw,tb);
+            hrb->insertPdu(cw,macPkt);
         }
     }
     else if (userInfo->getFrameType() == RACPKT)

@@ -25,9 +25,9 @@ LteHarqProcessRx::LteHarqProcessRx(unsigned char acid, LteMacBase *owner)
     maxHarqRtx_ = owner->par("maxHarqRtx");
 }
 
-void LteHarqProcessRx::insertPdu(Codeword cw, LteMacTransportBlock *tb)
+void LteHarqProcessRx::insertPdu(Codeword cw, NRMacPacket *macPkt)
 {
-    UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(tb->getPdu()->getControlInfo());
+    UserControlInfo *lteInfo = check_and_cast<UserControlInfo *>(macPkt->getControlInfo());
     bool ndi = lteInfo->getNdi();
 
     EV << "LteHarqProcessRx::insertPdu - ndi is " << ndi << endl;
@@ -50,7 +50,7 @@ void LteHarqProcessRx::insertPdu(Codeword cw, LteMacTransportBlock *tb)
     //     result directly per-CBG from the decider (much better?), especially in the case of URLLC traffic.
 
     // store new received pdu
-    tb_.at(cw) = tb;
+    tb_.at(cw) = macPkt->getTransportBlock ();
     result_.at(cw) = lteInfo->getDeciderResult();
     status_.at(cw) = RXHARQ_PDU_EVALUATING;
     rxTime_.at(cw) = NOW;
