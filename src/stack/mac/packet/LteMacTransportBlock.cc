@@ -17,11 +17,13 @@
 
 #include "stack/mac/packet/NRCodeBlockGroup_m.h"
 
-LteMacTransportBlock::LteMacTransportBlock ()
+LteMacTransportBlock::LteMacTransportBlock (bool bCBGEnabled)
+: m_bCBGEnabled {bCBGEnabled}
 {}
 
-LteMacTransportBlock::LteMacTransportBlock (LteMacPdu * pPdu)
+LteMacTransportBlock::LteMacTransportBlock (LteMacPdu * pPdu, bool bCBGEnabled)
 : m_pdu {pPdu}
+, m_bCBGEnabled {bCBGEnabled}
 {
     do_generateCodeBlockGroups ();
 }
@@ -73,7 +75,7 @@ LteMacTransportBlock::do_generateCodeBlockGroups ()
     assert (totalBytes != 0);
 
     const std::size_t availableNumCBGs[] = { 8, 6, 4, 2, 1};
-    std::size_t numCBGsIdx = 0;
+    std::size_t numCBGsIdx = m_bCBGEnabled ? 0 : 4;
     std::size_t cbgSize;
 
     // check which number of CBGs is suitable depending on the total pdu size
