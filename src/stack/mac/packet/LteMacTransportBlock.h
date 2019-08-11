@@ -29,8 +29,8 @@ class NRCodeBlockGroup;
 class LteMacTransportBlock
 {
 public:
-    LteMacTransportBlock();
-    LteMacTransportBlock(LteMacPdu * pPdu);
+    LteMacTransportBlock(bool bCBGEnabled = false);
+    LteMacTransportBlock(LteMacPdu * pPdu, bool bCBGEnabled = false);
     ~LteMacTransportBlock();
 
 public:
@@ -53,6 +53,7 @@ private:
 
     std::unique_ptr <LteMacPdu> m_pdu;
     std::vector <CBGStatus>     m_vCodeBlockGroups;
+    bool                        m_bCBGEnabled;
 };
 
 #endif /* STACK_MAC_PACKET_LTEMACTRANSPORTBLOCK_H_ */
