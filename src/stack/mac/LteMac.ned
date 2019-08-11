@@ -39,6 +39,9 @@ simple LteMacBase like LteMac {
         //# Mac Scheduler
         int    maxBytesPerTti @unit(B) = default(3000KiB);          // Schedulable Bytes
         
+        //# CBG-based transmission
+        bool cbgBasedTransmission = default(false);
+        
         //# Mac MIB
         
         bool muMimo = default(true);

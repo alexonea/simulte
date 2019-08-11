@@ -67,7 +67,8 @@ void LteHarqUnitTx::insertPdu(LteMacPdu *pdu)
     // [2019-08-03] TODO: Generate CBGs based on LteMacPdu and encapsulate them into a TB instance. Attach the
     //     TB instance to the LteMacPdu. Alternatively, propagate the TB instance instead of the LteMacPdu and
     //     reference the LteMacPdu from the TB instance.
-    tb_.reset (new LteMacTransportBlock (pdu));
+    bool bCBGEnabled = macOwner_->par("cbgBasedTransmission");
+    tb_.reset (new LteMacTransportBlock (pdu, bCBGEnabled));
 
 //    NRCodeBlockGroup *pCBG = new NRCodeBlockGroup ();
 //    pCBG->setTransportBlock (tb_.get ());
