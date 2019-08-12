@@ -28,6 +28,8 @@ Define_Module( LteMacEnb);
  * PUBLIC FUNCTIONS
  *********************/
 
+static std::size_t numNewPackets = 0;
+
 LteMacEnb::LteMacEnb() :
     LteMacBase()
 {
@@ -45,6 +47,8 @@ LteMacEnb::LteMacEnb() :
 
 LteMacEnb::~LteMacEnb()
 {
+    std::cerr << "New packets: " << numNewPackets << "\n";
+
     delete amc_;
     delete enbSchedulerDl_;
     delete enbSchedulerUl_;
@@ -509,6 +513,8 @@ void LteMacEnb::macPduMake(LteMacScheduleList* scheduleList)
                 macPkt->setControlInfo(uinfo);
                 macPkt->setTimestamp(NOW);
                 macPduList_[pktId] = macPkt;
+
+                numNewPackets ++;
             }
             else
             {

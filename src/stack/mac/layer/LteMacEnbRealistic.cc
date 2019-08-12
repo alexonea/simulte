@@ -29,6 +29,32 @@ Define_Module( LteMacEnbRealistic);
  * PUBLIC FUNCTIONS
  *********************/
 
+#include <map>
+#include <utility>
+
+static std::size_t numDroppedPackets = 0;
+static std::size_t numNewPackets = 0;
+static std::size_t totalPacketSize = 0;
+
+struct UserStats1
+{
+    std::size_t totalSduSize;
+    std::size_t signaledFromUpper;
+    std::size_t signaledCount;
+    std::size_t receivedFromUpper;
+    std::size_t lostDueToOverflow;
+
+    UserStats1()
+    : totalSduSize {0}
+    , signaledFromUpper {0}
+    , signaledCount {0}
+    , receivedFromUpper {0}
+    , lostDueToOverflow {0}
+    {}
+};
+
+static std::map <MacCid, UserStats1> userStats;
+
 LteMacEnbRealistic::LteMacEnbRealistic() :
     LteMacEnb()
 {
@@ -37,6 +63,19 @@ LteMacEnbRealistic::LteMacEnbRealistic() :
 
 LteMacEnbRealistic::~LteMacEnbRealistic()
 {
+    std::cerr << "New packets: " << numNewPackets << "\n";
+    std::cerr << "Dropped packets: " << numDroppedPackets << "\n";
+    std::cerr << "Total packet size: " << totalPacketSize << "\n";
+
+    std::cerr << "user\ttotalSduSize\tSignaled(count)\tSignaled\tReceived\tLost\n";
+    for (const auto & u : userStats)
+    {
+        std::cerr << u.first << " " << u.second.totalSduSize << "\t"
+                  << u.second.signaledCount << "\t"
+                  << u.second.signaledFromUpper << "\t"
+                  << u.second.receivedFromUpper << "\t"
+                  << u.second.lostDueToOverflow << "\n";
+    }
 }
 
 /***********************
@@ -92,6 +131,13 @@ void LteMacEnbRealistic::macSduRequest()
         Codeword cw = it->first.second;
         MacNodeId destId = MacCidToNodeId(destCid);
 
+        auto ustat = userStats.find(destCid);
+        if (ustat == userStats.end())
+        {
+            userStats.insert(std::make_pair(destCid, UserStats1()));
+            ustat = userStats.find(destCid);
+        }
+
         // for each band, count the number of bytes allocated for this ue (dovrebbe essere per cid)
         unsigned int allocatedBytes = 0;
         int numBands = deployer_->getNumBands();
@@ -109,6 +155,8 @@ void LteMacEnbRealistic::macSduRequest()
         macSduRequest->setSduSize(allocatedBytes - MAC_HEADER);    // do not consider MAC header size
         macSduRequest->setControlInfo((&connDesc_[destCid])->dup());
         sendUpperPackets(macSduRequest);
+
+        ustat->second.totalSduSize += allocatedBytes - MAC_HEADER;
     }
 
     EV << "------ END LteMacEnbRealistic::macSduRequest ------\n";
@@ -236,12 +284,15 @@ void LteMacEnbRealistic::macPduMake(MacCid cid)
         {
             EV << "macPduMake() : no available process for this MAC pdu in TxHarqBuffer" << endl;
             delete macPkt;
+            numDroppedPackets ++;
         }
         else
         {
             if (txList.first == HARQ_NONE)
             throw cRuntimeError("LteMacBase: pduMaker sending to uncorrect void H-ARQ process. Aborting");
             txBuf->insertPdu(txList.first, cw, macPkt);
+            numNewPackets ++;
+            totalPacketSize += macPkt->getByteLength();
         }
     }
     EV << "------ END LteMacEnbRealistic::macPduMake ------\n";
@@ -259,6 +310,13 @@ bool LteMacEnbRealistic::bufferizePacket(cPacket* pkt)
     // obtain the cid from the packet informations
     MacCid cid = ctrlInfoToMacCid(lteInfo);
 
+    auto ustat = userStats.find(cid);
+    if (ustat == userStats.end())
+    {
+        userStats.insert(std::make_pair(cid, UserStats1()));
+        ustat = userStats.find(cid);
+    }
+
     // this packet is used to signal the arrival of new data in the RLC buffers
     if (strcmp(pkt->getName(), "newDataPkt") == 0)
     {
@@ -266,6 +324,9 @@ bool LteMacEnbRealistic::bufferizePacket(cPacket* pkt)
 
         // build the virtual packet corresponding to this incoming packet
         PacketInfo vpkt(pkt->getByteLength(), pkt->getTimestamp());
+
+        ustat->second.signaledFromUpper += pkt->getByteLength();
+        ustat->second.signaledCount ++;
 
         LteMacBufferMap::iterator it = macBuffers_.find(cid);
         if (it == macBuffers_.end())
@@ -314,6 +375,8 @@ bool LteMacEnbRealistic::bufferizePacket(cPacket* pkt)
         EV << "LteMacBuffers : Using new buffer on node: " <<
         MacCidToNodeId(cid) << " for Lcid: " << MacCidToLcid(cid) << ", Space left in the Queue: " <<
         queue->getQueueSize() - queue->getByteLength() << "\n";
+
+        ustat->second.receivedFromUpper += pkt->getByteLength();
     }
     else
     {
@@ -321,6 +384,8 @@ bool LteMacEnbRealistic::bufferizePacket(cPacket* pkt)
         LteMacQueue* queue = it->second;
         if (!queue->pushBack(pkt))
         {
+            ustat->second.lostDueToOverflow += pkt->getByteLength();
+
             totalOverflowedBytes_ += pkt->getByteLength();
             double sample = (double)totalOverflowedBytes_ / (NOW - getSimulation()->getWarmupPeriod());
             if (lteInfo->getDirection()==DL)
@@ -336,6 +401,8 @@ bool LteMacEnbRealistic::bufferizePacket(cPacket* pkt)
             delete pkt;
             return false;
         }
+
+        ustat->second.receivedFromUpper += pkt->getByteLength();
 
         EV << "LteMacBuffers : Using old buffer on node: " <<
         MacCidToNodeId(cid) << " for Lcid: " << MacCidToLcid(cid) << ", Space left in the Queue: " <<

@@ -41,8 +41,15 @@ LteSchedulerEnb::LteSchedulerEnb()
     //    maxPower_ = .0;
 }
 
+
+static std::size_t scheduleCnt = 0;
+static std::size_t rescheduleCnt = 0;
+static std::size_t allocatedUser = 0;
+
 LteSchedulerEnb::~LteSchedulerEnb()
 {
+    std::cerr << "ScheduleCNT: " << scheduleCnt << "/" << rescheduleCnt << "\n";
+    std::cerr << "Allocated USER: " << allocatedUser << "\n";
     delete allocator_;
     if(scheduler_)
         delete scheduler_;
@@ -96,9 +103,11 @@ LteMacScheduleList* LteSchedulerEnb::schedule()
     mac_->getAmc()->cleanAmcStructures(direction_,scheduler_->readActiveSet());
 
     // scheduling of retransmission and transmission
+    rescheduleCnt++;
     EV << "___________________________start RTX __________________________________" << endl;
     if(!(scheduler_->scheduleRetransmissions()))
     {
+        scheduleCnt++;
         EV << "____________________________ end RTX __________________________________" << endl;
         EV << "___________________________start SCHED ________________________________" << endl;
         scheduler_->updateSchedulingInfo();
@@ -686,6 +695,7 @@ unsigned int LteSchedulerEnb::scheduleGrant(MacCid cid, unsigned int bytes,
     EV << "LteSchedulerEnb::grant Total allocation: " << totalAllocatedBytes << " bytes, " << totalAllocatedBlocks << " blocks" << endl;
     EV << "LteSchedulerEnb::grant --------------------::[  END GRANT  ]::--------------------" << endl;
 
+    allocatedUser += totalAllocatedBytes;
     return totalAllocatedBytes;
 }
 

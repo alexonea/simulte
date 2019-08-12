@@ -12,6 +12,14 @@
 #include "stack/mac/scheduler/LteScheduler.h"
 #include "stack/mac/allocator/LteAllocationModule.h"
 
+static std::size_t totalAvailableCnt = 0;
+static std::size_t totalServedCnt = 0;
+
+LteSchedulerEnbDl::~LteSchedulerEnbDl()
+{
+    std::cerr << "total served " << totalServedCnt << " and " << totalAvailableCnt << " available\n";
+}
+
 bool
 LteSchedulerEnbDl::checkEligibility(MacNodeId id, Codeword& cw)
 {
@@ -161,6 +169,8 @@ LteSchedulerEnbDl::schedulePerAcidRtx(MacNodeId nodeId, Codeword cw, unsigned ch
         if (limit >= 0 && !limitBl)
             available = limit < (int) available ? limit : available;
 
+        totalAvailableCnt += available;
+
         EV << NOW << "LteSchedulerEnbDl::rtxAcid ----- BAND " << b << "-----" << endl;
         EV << NOW << "LteSchedulerEnbDl::rtxAcid To serve: " << bytes << " bytes" << endl;
         EV << NOW << "LteSchedulerEnbDl::rtxAcid Available: " << available << " bytes" << endl;
@@ -246,6 +256,8 @@ LteSchedulerEnbDl::schedulePerAcidRtx(MacNodeId nodeId, Codeword cw, unsigned ch
 
     EV << NOW << " LteSchedulerEnbDl::rtxAcid HARQ Process " << (int)acid << "  codeword  " << cw << ", " << bytes << " bytes served!" << endl;
 
+
+    totalServedCnt += bytes;
     return bytes;
 }
 

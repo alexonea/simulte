@@ -12,13 +12,56 @@
 #include "stack/mac/allocator/LteAllocationModule.h"
 #include "stack/mac/buffer/LteMacBuffer.h"
 
+
+static std::size_t totalAvailableCnt = 0;
+
+struct UserStats
+{
+    std::size_t numGrants;
+    std::size_t totalBytes;
+    std::size_t notEligible;
+    std::size_t bookedUsed;
+    std::size_t totalBooked;
+    std::size_t toBook;
+    std::size_t noMoreSpace;
+    std::size_t alreadyAllocated;
+    std::size_t lost;
+
+    UserStats ()
+    : numGrants {0}
+    , totalBytes {0}
+    , notEligible {0}
+    , bookedUsed {0}
+    , totalBooked {0}
+    , toBook {0}
+    , noMoreSpace {0}
+    , alreadyAllocated {0}
+    , lost {0}
+    {}
+};
+
+#include <map>
+#include <utility>
+
+static std::map <MacCid, UserStats> userStats;
+
 LteSchedulerEnbDlRealistic::LteSchedulerEnbDlRealistic() {
     // TODO Auto-generated constructor stub
 
 }
 
 LteSchedulerEnbDlRealistic::~LteSchedulerEnbDlRealistic() {
-    // TODO Auto-generated destructor stub
+    std::cerr << "total byets " << totalAvailableCnt << " available\n";
+
+    for (const auto & u : userStats)
+    {
+        std::cerr << u.first << "\t" << u.second.numGrants << "\t" << u.second.totalBytes << "\t"
+                  << u.second.notEligible << "\t"
+                  << u.second.totalBooked << "\t" << u.second.bookedUsed << "\t"
+                  << u.second.toBook << "\t"
+                  << u.second.noMoreSpace << "\t" << u.second.alreadyAllocated << "\t"
+                  << u.second.lost << "\n";
+    }
 }
 
 /*  COMPLETE:        grant(cid,bytes,terminate,active,eligible,band_limit,antenna);
@@ -29,6 +72,15 @@ unsigned int LteSchedulerEnbDlRealistic::scheduleGrant(MacCid cid, unsigned int 
         bool& terminate, bool& active, bool& eligible, std::vector<BandLimit>* bandLim,
         Remote antenna, bool limitBl)
 {
+    auto ustat = userStats.find(cid);
+    if (ustat == userStats.end())
+    {
+        userStats.insert(std::make_pair(cid, UserStats ()));
+        ustat = userStats.find(cid);
+    }
+
+    ustat->second.numGrants++;
+
     // Get the node ID and logical connection ID
     MacNodeId nodeId = MacCidToNodeId(cid);
     LogicalCid flowId = MacCidToLcid(cid);
@@ -131,6 +183,8 @@ unsigned int LteSchedulerEnbDlRealistic::scheduleGrant(MacCid cid, unsigned int 
     {
         terminate = true; // ODFM space ended, issuing terminate flag
         EV << "LteSchedulerEnbDlRealistic::grant Space ended, no schedulation." << endl;
+        ustat->second.noMoreSpace ++;
+        ustat->second.lost += queueLength;
         return 0;
     }
 
@@ -140,6 +194,7 @@ unsigned int LteSchedulerEnbDlRealistic::scheduleGrant(MacCid cid, unsigned int 
     if (cwAlredyAllocated > 0)
     {
         terminate = true;
+        ustat->second.alreadyAllocated ++;
         return 0;
     }
 
@@ -175,6 +230,7 @@ unsigned int LteSchedulerEnbDlRealistic::scheduleGrant(MacCid cid, unsigned int 
         EV << "LteSchedulerEnbDlRealistic::grant Total allocation: " << totalAllocatedBytes << "bytes" << endl;
         EV << "LteSchedulerEnbDlRealistic::grant NOT ELIGIBLE!!!" << endl;
         EV << "LteSchedulerEnbDlRealistic::grant --------------------::[  END GRANT  ]::--------------------" << endl;
+        ustat->second.notEligible ++;
         return totalAllocatedBytes; // return the total number of served bytes
     }
 
@@ -219,6 +275,8 @@ unsigned int LteSchedulerEnbDlRealistic::scheduleGrant(MacCid cid, unsigned int 
         }
 
         EV << "LteSchedulerEnbDlRealistic::grant bytes to be allocated: " << toBook << endl;
+
+        ustat->second.toBook += toBook;
 
         // Book bands for this connection
         for (unsigned int i = 0; i < size; ++i)
@@ -423,6 +481,9 @@ unsigned int LteSchedulerEnbDlRealistic::scheduleGrant(MacCid cid, unsigned int 
             vQueueItemCounter++;
         }
 
+        ustat->second.bookedUsed += bookedUsed;
+        ustat->second.totalBooked += totalBooked;
+
         // update virtual buffer
         unsigned int alloc = toServe;
         alloc -= MAC_HEADER;
@@ -501,5 +562,7 @@ unsigned int LteSchedulerEnbDlRealistic::scheduleGrant(MacCid cid, unsigned int 
     EV << "LteSchedulerEnbDlRealistic::grant Total allocation: " << totalAllocatedBytes << " bytes, " << totalAllocatedBlocks << " blocks" << endl;
     EV << "LteSchedulerEnbDlRealistic::grant --------------------::[  END GRANT  ]::--------------------" << endl;
 
+    totalAvailableCnt += totalAllocatedBytes;
+    ustat->second.totalBytes += totalAllocatedBytes;
     return totalAllocatedBytes;
 }

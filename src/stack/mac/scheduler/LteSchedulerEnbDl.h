@@ -53,6 +53,8 @@ class LteSchedulerEnbDl : public LteSchedulerEnb
     {
     }
 
+    ~LteSchedulerEnbDl();
+
 
     /**
      * Schedules capacity for a given connection without effectively perform the operation on the
