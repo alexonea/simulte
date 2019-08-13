@@ -67,19 +67,15 @@ void LteHarqUnitTx::insertPdu(LteMacPdu *pdu)
     // [2019-08-03] TODO: Generate CBGs based on LteMacPdu and encapsulate them into a TB instance. Attach the
     //     TB instance to the LteMacPdu. Alternatively, propagate the TB instance instead of the LteMacPdu and
     //     reference the LteMacPdu from the TB instance.
-    bool bCBGEnabled = macOwner_->par("codeBlockGroupTransmission");
-    tb_.reset (new LteMacTransportBlock (pdu, bCBGEnabled));
 
-//    NRCodeBlockGroup *pCBG = new NRCodeBlockGroup ();
-//    pCBG->setTransportBlock (tb_.get ());
-//    pCBG->setByteLength (pdu->getByteLength ());
-//
-//    tb_->addCBG (pCBG);
+    // [2019-08-13] TODO: transfer the CBG properties to DCI
+    bool bCBGEnabled = macOwner_->par("codeBlockGroupTransmission");
+    int  maxNumCBGs  = macOwner_->par("maxCodeBlockGroupsPerTransportBlock");
+    tb_.reset (new LteMacTransportBlock (pdu, bCBGEnabled, maxNumCBGs));
 
     // [2019-08-05] TODO: compute the number of CBGs based on the size of the PDU
     unsigned numCBGs = tb_->getNumCBGs();
 
-//    pdu_ = pdu;
     pduId_ = pdu->getId();
     // as unique MacPDUId the OMNET id is used (need separate member since it must not be changed by dup())
     pdu->setMacPduId(pdu->getId());

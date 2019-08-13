@@ -40,7 +40,10 @@ simple LteMacBase like LteMac {
         int    maxBytesPerTti @unit(B) = default(3000KiB);          // Schedulable Bytes
         
         //# CBG-based transmission
-        bool codeBlockGroupTransmission = default(false);
+        bool codeBlockGroupTransmission          = default (false);
+        
+        //# Maximum number of CBGs in a TB. Possible values are 2, 4, 6 and 8
+        int  maxCodeBlockGroupsPerTransportBlock = default (8);
         
         //# Mac MIB
         

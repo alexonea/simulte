@@ -29,8 +29,8 @@ class NRCodeBlockGroup;
 class LteMacTransportBlock
 {
 public:
-    LteMacTransportBlock(bool bCBGEnabled = false);
-    LteMacTransportBlock(LteMacPdu * pPdu, bool bCBGEnabled = false);
+    LteMacTransportBlock(bool bCBGEnabled, unsigned int maxNumCBGs);
+    LteMacTransportBlock(LteMacPdu * pPdu, bool bCBGEnabled, unsigned int maxNumCBGs);
     ~LteMacTransportBlock();
 
 public:
@@ -54,6 +54,7 @@ private:
     std::unique_ptr <LteMacPdu> m_pdu;
     std::vector <CBGStatus>     m_vCodeBlockGroups;
     bool                        m_bCBGEnabled;
+    unsigned int                m_nMaxCBGs;
 };
 
 #endif /* STACK_MAC_PACKET_LTEMACTRANSPORTBLOCK_H_ */

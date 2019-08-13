@@ -17,14 +17,22 @@
 
 #include "stack/mac/packet/NRCodeBlockGroup_m.h"
 
-LteMacTransportBlock::LteMacTransportBlock (bool bCBGEnabled)
+LteMacTransportBlock::LteMacTransportBlock (bool bCBGEnabled, unsigned int maxNumCBGs)
 : m_bCBGEnabled {bCBGEnabled}
-{}
+, m_nMaxCBGs    {maxNumCBGs}
+{
+    if (maxNumCBGs != 2 && maxNumCBGs != 4 && maxNumCBGs != 6 && maxNumCBGs != 8)
+        throw cRuntimeError ("Invalid value for max number of CBGs");
+}
 
-LteMacTransportBlock::LteMacTransportBlock (LteMacPdu * pPdu, bool bCBGEnabled)
+LteMacTransportBlock::LteMacTransportBlock (LteMacPdu * pPdu, bool bCBGEnabled, unsigned int maxNumCBGs)
 : m_pdu {pPdu}
 , m_bCBGEnabled {bCBGEnabled}
+, m_nMaxCBGs    {maxNumCBGs}
 {
+    if (maxNumCBGs != 2 && maxNumCBGs != 4 && maxNumCBGs != 6 && maxNumCBGs != 8)
+        throw cRuntimeError ("Invalid value for max number of CBGs");
+
     do_generateCodeBlockGroups ();
 }
 
