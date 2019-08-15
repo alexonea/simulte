@@ -17,6 +17,8 @@
 
 #include "stack/mac/packet/NRCodeBlockGroup_m.h"
 
+#include "stack/mac/amc/UserTxParams.h"
+
 LteMacTransportBlock::LteMacTransportBlock (bool bCBGEnabled, unsigned int maxNumCBGs)
 : m_bCBGEnabled {bCBGEnabled}
 , m_nMaxCBGs    {maxNumCBGs}
@@ -77,24 +79,51 @@ LteMacTransportBlock::getCBG (std::size_t idx)
 void
 LteMacTransportBlock::do_generateCodeBlockGroups ()
 {
-    // [2019-08-07] TODO: Perform proper generation as specified in 3GPP TS 38.212
+    // [2019-08-07] TODO: Perform proper generation as specified in 3GPP TS 38.212 and 38.213 9.1.1
 
     std::size_t totalBytes = m_pdu->getByteLength ();
     assert (totalBytes != 0);
 
+    std::size_t A = totalBytes * 8;
+
     const std::size_t availableNumCBGs[] = { 8, 6, 4, 2, 1};
     std::size_t numCBGsIdx = m_bCBGEnabled ? 0 : 4;
     std::size_t cbgSize;
+    std::size_t numCBGs;
+    std::size_t C;
+    double R = ((UserControlInfo *) m_pdu->getControlInfo())->getUserTxParams()->getCwRate(0) / 1024;
 
-    // check which number of CBGs is suitable depending on the total pdu size
-    while ((cbgSize = int (ceil (float (totalBytes) / availableNumCBGs [numCBGsIdx]))) == 0)
-        numCBGsIdx++;
-
-    std::size_t numCBGs = availableNumCBGs [numCBGsIdx];
-    while (numCBGs > 0 && totalBytes > 0)
+    if (! m_bCBGEnabled)
     {
-        std::size_t bytes = (totalBytes >= cbgSize) ? cbgSize : totalBytes;
+        numCBGs = C = 1;
+    }
+    else
+    {
+        std::size_t Kcb = (A < 292 || ((A <= 3824) && (R <= 0.67)) || R <= 0.25) ? 3840 : 8448;
 
+        // [2019-08-13] Correction: here the payload size A + CRC should be considered
+        //     For now we only consider the payload size. Also small correction on the "else" branch.
+        //     Please see 38.212 5.2.2 for corrections
+        if (A <= Kcb)
+            C = 1;
+        else
+            C = ceil ((double) A / Kcb);
+
+        numCBGs = (m_nMaxCBGs < C) ? m_nMaxCBGs : C;
+    }
+
+    std::size_t cbSize = ceil (float (totalBytes) / C);
+
+    // Perform CBG generation according to 38.213 9.1.1
+    std::size_t middle = C % numCBGs;
+    std::size_t cbPerCBGUpToMiddle = ceil ((float) C / numCBGs);
+    std::size_t cbPerCBGFromMiddle = floor ((float) C / numCBGs);
+    std::size_t cbgSizeUpToMiddle = cbPerCBGUpToMiddle * cbSize;
+    std::size_t cbgSizeFromMiddle = cbPerCBGFromMiddle * cbSize;
+
+    for (std::size_t i = 0; i < middle; ++i)
+    {
+        std::size_t bytes = (totalBytes >= cbgSizeUpToMiddle) ? cbgSizeUpToMiddle : totalBytes;
         NRCodeBlockGroup *cbg = new NRCodeBlockGroup ("NRCodeBlockGroup");
         cbg->setTransportBlock (this);
         cbg->setByteLength (bytes);
@@ -102,7 +131,18 @@ LteMacTransportBlock::do_generateCodeBlockGroups ()
         m_vCodeBlockGroups.push_back (std::make_pair (cbg, CBG_STATE_UNKNOWN));
 
         totalBytes -= bytes;
-        numCBGs--;
+    }
+
+    for (std::size_t i = middle; i < numCBGs; ++i)
+    {
+        std::size_t bytes = (totalBytes >= cbgSizeFromMiddle) ? cbgSizeFromMiddle : totalBytes;
+        NRCodeBlockGroup *cbg = new NRCodeBlockGroup ("NRCodeBlockGroup");
+        cbg->setTransportBlock (this);
+        cbg->setByteLength (bytes);
+
+        m_vCodeBlockGroups.push_back (std::make_pair (cbg, CBG_STATE_UNKNOWN));
+
+        totalBytes -= bytes;
     }
 
     assert (totalBytes == 0);
