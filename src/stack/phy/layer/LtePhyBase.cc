@@ -198,7 +198,7 @@ LteChannelModel* LtePhyBase::getChannelModelFromName(std::string name, Parameter
 
 LteChannelModel* LtePhyBase::initializeChannelModel(ParameterMap& params)
 {
-    return new LteRealisticChannelModel(params, getRadioPosition(), binder_->getNumBands());
+    return new LteRealisticChannelModel(params, getRadioPosition(), binder_->getNumBands(), par("urllcDensity"));
 }
 
 LteChannelModel* LtePhyBase::initializeDummyChannelModel(ParameterMap& params)

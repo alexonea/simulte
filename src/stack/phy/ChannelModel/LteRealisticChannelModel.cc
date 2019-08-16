@@ -21,8 +21,8 @@
 #define ATT_MAXDISTVIOLATED 1000
 
 LteRealisticChannelModel::LteRealisticChannelModel(ParameterMap& params,
-        const Coord& myCoord, unsigned int band) :
-        LteChannelModel(band), myCoord_(myCoord)
+        const Coord& myCoord, unsigned int band, double urllcDensity) :
+        LteChannelModel(band), myCoord_(myCoord), urllcDensity_(urllcDensity)
 {
     // LOAD ALL PARAMETERS FROM XML
     // if the parameter is not explicitly reported in xml
@@ -1702,6 +1702,12 @@ bool LteRealisticChannelModel::error(LteAirFrame *frame,
         // Signal too weak, we can't receive it
         return false;
     }
+
+    // [2019-08-17] URLLC traffic random generation
+    double urllc = uniform(getEnvir()->getRNG(2), 0.0, 1.0);
+    if (urllc < urllcDensity_)
+        return false;
+
     // Signal is strong enough, receive this Signal
     EV << "This is your lucky day (" << er << " > " << totalPer
             << ") -> Receive AirFrame." << endl;

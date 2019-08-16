@@ -40,6 +40,8 @@ simple LtePhyBase like LtePhy {
         string txDirection = default("OMNI");
         double txAngle = default(0);       
         
+        double urllcDensity = default(0);
+
         bool dynamicCellAssociation = default(false);
         
         // switch for handover messages handling on UEs

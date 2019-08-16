@@ -141,8 +141,11 @@ class LteRealisticChannelModel : public LteChannelModel
     //if dynamicLos is false this boolean is initialized to true if all user will be in LOS or false otherwise
     bool fixedLos_;
 
+    // URLLC denisity
+    double urllcDensity_;
+
   public:
-    LteRealisticChannelModel(ParameterMap& params, const inet::Coord& myCoord, unsigned int band);
+    LteRealisticChannelModel(ParameterMap& params, const inet::Coord& myCoord, unsigned int band, double urllcDensity);
     virtual ~LteRealisticChannelModel();
     /*
      * Compute Attenuation caused by pathloss and shadowing (optional)
